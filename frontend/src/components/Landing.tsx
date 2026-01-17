@@ -69,7 +69,7 @@ export default function Landing() {
                         <CornerBrackets size="lg" animated>
                             <button
                                 className="btn btn-primary cta-button"
-                                onClick={() => navigate('/setup')}
+                                onClick={() => navigate('/training')}
                             >
                                 Start Practice Session
                             </button>

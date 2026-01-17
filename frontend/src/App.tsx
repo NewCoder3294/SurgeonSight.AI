@@ -3,7 +3,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import Landing from './components/Landing';
 import CameraSetup from './components/CameraSetup';
 import CoachingSession from './components/CoachingSession';
-import SessionSummary from './components/SessionSummary';
+import TrainingSession from './components/TrainingSession';
 import './App.css';
 
 function App() {
@@ -13,8 +13,9 @@ function App() {
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/setup" element={<CameraSetup />} />
+          {/* Standalone session route if needed, or we can replace it */}
           <Route path="/session" element={<CoachingSession />} />
-          <Route path="/summary" element={<SessionSummary />} />
+          <Route path="/training" element={<TrainingSession />} />
         </Routes>
       </div>
     </ThemeProvider>

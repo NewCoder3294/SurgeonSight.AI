@@ -24,7 +24,7 @@ const DEMO_FEEDBACK = [
     { type: 'encouragement', message: "That's the technique." },
 ];
 
-export default function CoachingSession() {
+export default function CoachingSession({ embedded = false }: { embedded?: boolean }) {
     const navigate = useNavigate();
     const videoFeedRef = useRef(null);
 
@@ -195,13 +195,13 @@ export default function CoachingSession() {
             }
         }
 
-        // Pass session data to summary
-        navigate('/summary', {
-            state: {
-                duration: sessionTime,
-                events: feedbackHistory,
-            }
-        });
+        // Just show an alert or console log for now, as user requested removing summary
+        console.log("Session Ended", { duration: sessionTime, events: feedbackHistory });
+
+        // If embedded, maybe notify parent? For now, we'll just stop here.
+        if (!embedded) {
+            navigate('/'); // Go back to landing if standalone
+        }
     };
 
     const corrections = feedbackHistory.filter(f => f.type === 'correction').length;
@@ -210,35 +210,37 @@ export default function CoachingSession() {
     return (
         <div className="coaching-session">
             {/* Header */}
-            <header className="session-header">
-                <div className="header-left">
-                    <h2 className="session-title">SurgeonSight AI</h2>
-                    <div className="status-indicator">
-                        <span className={`status-dot ${isAnalyzing ? 'active' : 'success'}`} />
-                        <span className="status-text">
-                            {isAnalyzing ? 'Analyzing' : 'Detected'}
-                        </span>
+            {!embedded && (
+                <header className="session-header">
+                    <div className="header-left">
+                        <h2 className="session-title">SurgeonSight AI</h2>
+                        <div className="status-indicator">
+                            <span className={`status-dot ${isAnalyzing ? 'active' : 'success'}`} />
+                            <span className="status-text">
+                                {isAnalyzing ? 'Analyzing' : 'Detected'}
+                            </span>
+                        </div>
+                        {/* Connection status */}
+                        <div className={`connection-status ${backendConnected ? 'connected' : 'offline'}`}>
+                            {backendConnected ? '● LIVE' : '○ DEMO'}
+                        </div>
                     </div>
-                    {/* Connection status */}
-                    <div className={`connection-status ${backendConnected ? 'connected' : 'offline'}`}>
-                        {backendConnected ? '● LIVE' : '○ DEMO'}
-                    </div>
-                </div>
 
-                <div className="header-center">
-                    <div className="session-timer">
-                        <span className="timer-label">Session Time</span>
-                        <span className="timer-value">{formatTime(sessionTime)}</span>
+                    <div className="header-center">
+                        <div className="session-timer">
+                            <span className="timer-label">Session Time</span>
+                            <span className="timer-value">{formatTime(sessionTime)}</span>
+                        </div>
                     </div>
-                </div>
 
-                <div className="header-right">
-                    <ThemeToggle />
-                    <button className="btn btn-danger end-btn" onClick={handleEndSession}>
-                        End Session
-                    </button>
-                </div>
-            </header>
+                    <div className="header-right">
+                        <ThemeToggle />
+                        <button className="btn btn-danger end-btn" onClick={handleEndSession}>
+                            End Session
+                        </button>
+                    </div>
+                </header>
+            )}
 
             {/* Main content */}
             <main className="session-content">
