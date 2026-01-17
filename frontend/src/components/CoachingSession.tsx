@@ -202,6 +202,9 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
         }
     };
 
+    const corrections = feedbackHistory.filter((f: any) => f.type === 'correction').length;
+    const encouragements = feedbackHistory.filter((f: any) => f.type === 'encouragement').length;
+
     return (
         <div className="min-h-screen flex flex-col bg-bg-primary">
             {/* Header */}
