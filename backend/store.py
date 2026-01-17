@@ -68,3 +68,9 @@ def clear_sessions() -> None:
     """Clear all sessions."""
     global _sessions
     _sessions = {}
+
+
+# Backward compatibility exports for baseline.py and session.py
+# These are mutable dicts that the old code expects
+BASELINE: Dict[str, Any] = {}
+SESSIONS: Dict[str, Any] = _sessions
