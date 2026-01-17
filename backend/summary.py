@@ -1,16 +1,15 @@
 """
-SurgeonSight AI - LLM Summary Endpoint
+SurgeonSight AI - LLM Summary Endpoints
 
-POST /expert/summary
-Generates a comprehensive, student-friendly summary of surgical practice session
-using Gemini LLM for intelligent analysis.
+POST /expert/summary (NEW - Part 1)
+  Generates expert technique summary from stats/segments for training videos.
 
-Input: session_data JSON with metrics, errors, scores, and expert reference
-Output: { "summary": "..." } - Human-readable performance report
+POST /expert/session-summary (Renamed from /expert/summary - Part 2)
+  Generates comprehensive student session summary using Gemini LLM.
 """
 
 import os
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Dict
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
@@ -21,7 +20,200 @@ router = APIRouter(prefix="/expert", tags=["summary"])
 
 
 # ===================================
-# Request/Response Models
+# PART 1: Expert Summary (NEW)
+# ===================================
+
+class ExpertSummaryRequest(BaseModel):
+    """Request for Part 1 expert summary."""
+    procedure: str
+    stats: Dict[str, Any]
+    segments: Optional[List[Dict[str, Any]]] = []
+    style: Optional[str] = "concise"
+
+
+class ExpertSummaryResponse(BaseModel):
+    """Response with expert summary."""
+    summary: str
+
+
+def build_expert_prompt(procedure: str, stats: Dict[str, Any], segments: List[Dict[str, Any]]) -> str:
+    """Build grounded prompt for expert summary - only references provided data."""
+    
+    # Build stats section
+    stats_lines = []
+    for key, value in stats.items():
+        if value is not None:
+            stats_lines.append(f"  - {key}: {value}")
+    
+    stats_block = "\n".join(stats_lines) if stats_lines else "  No stats provided."
+    
+    # Build segments section (if any)
+    segments_block = ""
+    if segments:
+        seg_lines = []
+        for i, seg in enumerate(segments[:10]):  # Limit to 10
+            line = f"  {i+1}. "
+            if "t_start" in seg and "t_end" in seg:
+                line += f"[{seg['t_start']:.1f}s - {seg['t_end']:.1f}s]"
+            if "type" in seg:
+                line += f" type: {seg['type']}"
+            seg_lines.append(line)
+        if seg_lines:
+            segments_block = "\n".join(seg_lines)
+    
+    prompt = f"""You are analyzing an expert surgical video performance. Generate a grounded summary based ONLY on the provided metrics.
+
+CRITICAL RULES:
+1. ONLY reference the stats and segments provided below - do NOT invent anatomy, organs, or tool names
+2. Describe technique characteristics derived from the numbers
+3. If segments are provided, reference them by time ranges only
+4. Use the exact format specified below
+
+PROCEDURE: {procedure}
+
+STATS:
+{stats_block}
+
+SEGMENTS:
+{segments_block if segments_block else "  No segments provided."}
+
+Generate a summary in this EXACT format:
+
+---
+
+## Technique Traits
+• [First trait derived from stats - e.g., angle_mean indicates X]
+• [Second trait derived from stats - e.g., speed_mean suggests Y]
+• [Third trait derived from stats - e.g., jitter_mean shows Z]
+
+## Notable Moments
+{f"• [First notable moment from segments at time range]\n• [Second notable moment from segments at time range]" if segments_block else ""}
+
+## Targets
+• Angle band: [derive from stats - e.g., angle_mean ± 2*angle_std or angle_min to angle_max]
+• Speed range: [derive from stats - e.g., speed_mean ± speed_std or reasonable bounds]
+• Jitter cap: [derive from jitter_mean - e.g., jitter_mean * 1.5 or jitter_mean + 0.1]
+
+---
+
+Now generate the summary:"""
+    
+    return prompt
+
+
+def generate_mock_expert_summary(procedure: str, stats: Dict[str, Any], segments: List[Dict[str, Any]]) -> str:
+    """Generate deterministic mock expert summary for dev mode."""
+    
+    angle_mean = stats.get("angle_mean", 15.0)
+    angle_std = stats.get("angle_std", 2.5)
+    speed_mean = stats.get("speed_mean", 4.2)
+    jitter_mean = stats.get("jitter_mean", 0.12)
+    
+    angle_min = stats.get("angle_min", angle_mean - 2 * angle_std)
+    angle_max = stats.get("angle_max", angle_mean + 2 * angle_std)
+    
+    summary = f"""## Technique Traits
+• Angle control demonstrates consistent alignment with mean of {angle_mean:.1f}° (std {angle_std:.1f}°), indicating stable wrist positioning
+• Speed management shows controlled pacing averaging {speed_mean:.2f} units, suggesting deliberate motion patterns
+• Stability metrics reflect low jitter at {jitter_mean:.3f}, demonstrating steady hand control
+
+## Notable Moments"""
+    
+    if segments:
+        first_seg = segments[0] if segments else {}
+        second_seg = segments[1] if len(segments) > 1 else {}
+        t1_start = first_seg.get("t_start", 0)
+        t1_end = first_seg.get("t_end", 5)
+        seg1_type = first_seg.get("type", "segment")
+        if second_seg:
+            t2_start = second_seg.get("t_start", 10)
+            t2_end = second_seg.get("t_end", 15)
+            seg2_type = second_seg.get("type", "segment")
+            summary += f"\n• {seg1_type.capitalize()} phase [{t1_start:.1f}s-{t1_end:.1f}s] shows controlled technique\n• {seg2_type.capitalize()} phase [{t2_start:.1f}s-{t2_end:.1f}s] maintains consistency"
+        else:
+            summary += f"\n• {seg1_type.capitalize()} phase [{t1_start:.1f}s-{t1_end:.1f}s] demonstrates stable execution"
+    else:
+        summary += "\n• [No segments provided]"
+    
+    summary += f"""
+
+## Targets
+• Angle band: {angle_min:.1f}° to {angle_max:.1f}° (maintain within ±{angle_std * 2:.1f}° of mean)
+• Speed range: {speed_mean - stats.get('speed_std', 0.8):.2f} to {speed_mean + stats.get('speed_std', 0.8):.2f} (keep within ±{stats.get('speed_std', 0.8):.1f} of mean)
+• Jitter cap: {jitter_mean * 1.5:.3f} (keep below 150% of observed mean)"""
+    
+    return summary
+
+
+async def call_gemini(prompt: str) -> str:
+    """Call Gemini API to generate the summary."""
+    try:
+        from google import genai
+        from google.genai import types
+        
+        api_key = os.getenv("GEMINI_API_KEY")
+        
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY not set")
+        
+        client = genai.Client(api_key=api_key)
+        
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=0.3,
+                max_output_tokens=1024,
+            )
+        )
+        
+        return response.text
+        
+    except ValueError as e:
+        raise e
+    except Exception as e:
+        raise RuntimeError(f"Gemini API error: {str(e)}")
+
+
+@router.post("/summary", response_model=ExpertSummaryResponse)
+async def generate_expert_summary(request: ExpertSummaryRequest):
+    """
+    Generate expert technique summary from stats/segments (Part 1).
+    
+    Takes procedure name, stats dict, and optional segments array.
+    Returns grounded summary with technique traits, notable moments, and targets.
+    """
+    
+    api_key = os.getenv("GEMINI_API_KEY")
+    dev_mode = os.getenv("DEV_MODE", "true").lower() == "true"
+    
+    if not api_key:
+        if dev_mode:
+            mock_summary = generate_mock_expert_summary(request.procedure, request.stats, request.segments or [])
+            return ExpertSummaryResponse(summary=mock_summary)
+        else:
+            raise HTTPException(
+                status_code=501,
+                detail="GEMINI_API_KEY not set"
+            )
+    
+    prompt = build_expert_prompt(request.procedure, request.stats, request.segments or [])
+    
+    try:
+        summary_text = await call_gemini(prompt)
+        return ExpertSummaryResponse(summary=summary_text)
+        
+    except ValueError as e:
+        raise HTTPException(status_code=501, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"LLM summary generation failed: {str(e)}"
+        )
+
+
+# ===================================
+# PART 2: Session Summary (RENAMED)
 # ===================================
 
 class ToolEvent(BaseModel):
@@ -38,7 +230,7 @@ class ToolEvent(BaseModel):
 class ErrorEvent(BaseModel):
     """An error or mistake during the session."""
     type: Optional[str] = None
-    severity: Optional[str] = None  # low/medium/high
+    severity: Optional[str] = None
     timestamp: Optional[float] = None
     context: Optional[str] = None
 
@@ -82,20 +274,11 @@ class SummaryResponse(BaseModel):
     summary: str
 
 
-# ===================================
-# Prompt Builder (Grounding is CRITICAL)
-# ===================================
-
 def build_comprehensive_prompt(session: SessionData) -> str:
-    """
-    Build a grounded prompt for generating student-friendly summary.
-    Only includes data that is actually present.
-    """
+    """Build a grounded prompt for generating student-friendly summary."""
     
-    # Build context sections based on available data
     sections = []
     
-    # Session basics
     if session.procedure_name:
         sections.append(f"PROCEDURE: {session.procedure_name}")
     
@@ -104,7 +287,6 @@ def build_comprehensive_prompt(session: SessionData) -> str:
         seconds = int(session.duration_seconds % 60)
         sections.append(f"DURATION: {minutes}m {seconds}s")
     
-    # Scores
     if session.scores:
         score_lines = []
         if session.scores.overall_score is not None:
@@ -120,10 +302,9 @@ def build_comprehensive_prompt(session: SessionData) -> str:
         if score_lines:
             sections.append("SCORES:\n" + "\n".join(score_lines))
     
-    # Tool events
     if session.tool_events:
         tool_lines = []
-        for i, event in enumerate(session.tool_events[:10]):  # Limit to 10
+        for i, event in enumerate(session.tool_events[:10]):
             line = f"  {i+1}. "
             if event.tool_name:
                 line += f"{event.tool_name}"
@@ -139,7 +320,6 @@ def build_comprehensive_prompt(session: SessionData) -> str:
         if tool_lines:
             sections.append("TOOL EVENTS:\n" + "\n".join(tool_lines))
     
-    # Errors
     if session.errors:
         error_lines = []
         high_count = sum(1 for e in session.errors if e.severity == "high")
@@ -148,7 +328,7 @@ def build_comprehensive_prompt(session: SessionData) -> str:
         
         error_lines.append(f"  Total: {len(session.errors)} errors ({high_count} high, {medium_count} medium, {low_count} low severity)")
         
-        for i, err in enumerate(session.errors[:8]):  # Limit to 8
+        for i, err in enumerate(session.errors[:8]):
             line = f"  - [{err.severity or 'unknown'}] {err.type or 'error'}"
             if err.context:
                 line += f": {err.context}"
@@ -158,7 +338,6 @@ def build_comprehensive_prompt(session: SessionData) -> str:
         
         sections.append("ERRORS:\n" + "\n".join(error_lines))
     
-    # Expert reference
     if session.expert_reference:
         ref_lines = []
         if session.expert_reference.average_completion_time:
@@ -230,48 +409,9 @@ Now generate the summary:"""
     return prompt
 
 
-# ===================================
-# Gemini API Call
-# ===================================
-
-async def call_gemini(prompt: str) -> str:
-    """Call Gemini API to generate the summary."""
-    try:
-        from google import genai
-        from google.genai import types
-        
-        api_key = os.getenv("GEMINI_API_KEY")
-        
-        if not api_key:
-            raise ValueError("GEMINI_API_KEY not set")
-        
-        client = genai.Client(api_key=api_key)
-        
-        response = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.3,
-                max_output_tokens=2048,
-            )
-        )
-        
-        return response.text
-        
-    except ValueError as e:
-        raise e
-    except Exception as e:
-        raise RuntimeError(f"Gemini API error: {str(e)}")
-
-
-# ===================================
-# Mock Summary Generator (Dev Mode)
-# ===================================
-
 def generate_mock_summary(session: SessionData) -> str:
     """Generate a realistic mock summary for dev mode testing."""
     
-    # Extract data with defaults
     procedure = session.procedure_name or "Surgical Practice"
     duration = session.duration_seconds or 300
     minutes = int(duration // 60)
@@ -283,7 +423,6 @@ def generate_mock_summary(session: SessionData) -> str:
     tissue = session.scores.tissue_handling_score if session.scores and session.scores.tissue_handling_score else 70
     speed = session.scores.speed_vs_safety_score if session.scores and session.scores.speed_vs_safety_score else 65
     
-    # Determine performance level
     if overall >= 81:
         level = "near expert level"
     elif overall >= 61:
@@ -293,11 +432,9 @@ def generate_mock_summary(session: SessionData) -> str:
     else:
         level = "beginner level"
     
-    # Count errors
     error_count = len(session.errors) if session.errors else 2
     high_errors = sum(1 for e in (session.errors or []) if e.severity == "high")
     
-    # Expert comparison
     expert_time = session.expert_reference.average_completion_time if session.expert_reference and session.expert_reference.average_completion_time else duration * 0.8
     time_diff = ((duration - expert_time) / expert_time) * 100
     time_comparison = f"Completed {abs(time_diff):.0f}% {'slower' if time_diff > 0 else 'faster'} than expert average"
@@ -336,14 +473,10 @@ You completed the **{procedure}** in {minutes}m {seconds}s. Based on your overal
 • Improve precision score from {precision} to {min(100, precision + 10)}"""
 
 
-# ===================================
-# Endpoint
-# ===================================
-
-@router.post("/summary", response_model=SummaryResponse)
-async def generate_summary(request: SummaryRequest):
+@router.post("/session-summary", response_model=SummaryResponse)
+async def generate_session_summary(request: SummaryRequest):
     """
-    Generate a comprehensive, student-friendly summary of surgical practice session.
+    Generate a comprehensive, student-friendly summary of surgical practice session (Part 2).
     
     Takes full session_data including metrics, errors, scores, and expert reference.
     Returns a structured summary report with actionable feedback.
@@ -363,7 +496,6 @@ async def generate_summary(request: SummaryRequest):
                 detail="GEMINI_API_KEY not set"
             )
     
-    # Build the comprehensive prompt
     prompt = build_comprehensive_prompt(session)
     
     try:
