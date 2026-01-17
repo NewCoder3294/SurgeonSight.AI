@@ -1,0 +1,108 @@
+.corner-brackets-container {
+    position: relative;
+    padding: var(--space-lg);
+}
+
+.bracket {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border-color: var(--accent-rust);
+    border-style: solid;
+    opacity: 0.8;
+    transition: all var(--transition-base);
+}
+
+.bracket-tl {
+    top: 0;
+    left: 0;
+    border-width: 2px 0 0 2px;
+}
+
+.bracket-tr {
+    top: 0;
+    right: 0;
+    border-width: 2px 2px 0 0;
+}
+
+.bracket-bl {
+    bottom: 0;
+    left: 0;
+    border-width: 0 0 2px 2px;
+}
+
+.bracket-br {
+    bottom: 0;
+    right: 0;
+    border-width: 0 2px 2px 0;
+}
+
+/* Size variants */
+.size-sm .bracket {
+    width: 12px;
+    height: 12px;
+    border-width: 1px;
+}
+
+.size-md .bracket {
+    width: 20px;
+    height: 20px;
+}
+
+.size-lg .bracket {
+    width: 32px;
+    height: 32px;
+    border-width: 3px;
+}
+
+.size-xl .bracket {
+    width: 48px;
+    height: 48px;
+    border-width: 3px;
+}
+
+/* Animated variant */
+.corner-brackets-container.animated .bracket {
+    animation: bracketPulse 3s ease-in-out infinite;
+}
+
+.corner-brackets-container.animated .bracket-tr {
+    animation-delay: 0.5s;
+}
+
+.corner-brackets-container.animated .bracket-bl {
+    animation-delay: 1s;
+}
+
+.corner-brackets-container.animated .bracket-br {
+    animation-delay: 1.5s;
+}
+
+@keyframes bracketPulse {
+
+    0%,
+    100% {
+        opacity: 0.6;
+    }
+
+    50% {
+        opacity: 1;
+    }
+}
+
+/* Hover effects */
+.corner-brackets-container:hover .bracket {
+    opacity: 1;
+    width: 28px;
+    height: 28px;
+}
+
+.size-sm.corner-brackets-container:hover .bracket {
+    width: 18px;
+    height: 18px;
+}
+
+.size-lg.corner-brackets-container:hover .bracket {
+    width: 40px;
+    height: 40px;
+}

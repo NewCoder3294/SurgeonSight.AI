@@ -1,0 +1,929 @@
+.landing {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Theme toggle positioning */
+.theme-toggle-container {
+    position: fixed;
+    top: var(--space-lg);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+}
+
+/* Grid overlay for cyberpunk effect */
+.grid-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    opacity: 0.03;
+    background-image:
+        linear-gradient(var(--accent-rust) 1px, transparent 1px),
+        linear-gradient(90deg, var(--accent-rust) 1px, transparent 1px);
+    background-size: 100px 100px;
+    z-index: 0;
+}
+
+/* Main content */
+.landing-content {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-4xl) var(--space-xl);
+    position: relative;
+    z-index: 1;
+}
+
+.hero-section {
+    text-align: center;
+    max-width: 1000px;
+}
+
+/* Pre-header */
+.pre-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-md);
+    margin-bottom: var(--space-xl);
+}
+
+.protocol-tag {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.3em;
+    color: var(--accent-rust);
+    padding: var(--space-xs) var(--space-sm);
+    border: 1px solid var(--border-subtle);
+}
+
+.divider-line {
+    height: 1px;
+    width: 60px;
+    background: linear-gradient(90deg, var(--border-subtle), transparent);
+}
+
+/* Hero title */
+.hero-title {
+    margin-bottom: var(--space-xl);
+    line-height: 0.9;
+}
+
+.title-line {
+    display: block;
+    font-size: clamp(4rem, 15vw, 12rem);
+    color: var(--text-cream);
+    text-shadow: 0 0 60px rgba(245, 240, 232, 0.1);
+}
+
+.title-line.accent {
+    color: var(--accent-rust);
+    text-shadow: 0 0 80px var(--accent-rust-glow);
+}
+
+/* Subtitle */
+.hero-subtitle {
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    letter-spacing: 0.2em;
+    color: var(--text-muted);
+    margin-bottom: var(--space-3xl);
+    text-transform: uppercase;
+}
+
+/* CTA Container */
+.cta-container {
+    display: inline-block;
+    margin-bottom: var(--space-4xl);
+}
+
+.cta-button {
+    padding: var(--space-lg) var(--space-3xl);
+    font-size: 1.5rem;
+    letter-spacing: 0.2em;
+}
+
+/* Sponsor section */
+.sponsor-section {
+    margin-bottom: var(--space-3xl);
+}
+
+/* Features grid */
+.features-grid {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-2xl);
+    flex-wrap: wrap;
+}
+
+.feature-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.feature-icon {
+    color: var(--accent-rust);
+    font-size: 0.8rem;
+}
+
+.feature-text {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+/* Footer */
+.landing-footer {
+    padding: var(--space-lg) var(--space-xl);
+    border-top: 1px solid var(--border-subtle);
+    position: relative;
+    z-index: 1;
+}
+
+.footer-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.sponsor-section {
+    display: flex;
+    align-items: center;
+    gap: var(--space-lg);
+}
+
+.sponsor-label {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.2em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+}
+
+.sponsor-logos {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.sponsor-logo {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+}
+
+.sponsor-divider {
+    color: var(--border-subtle);
+}
+
+.version-info {
+    color: var(--text-dim);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .landing-content {
+        padding: var(--space-2xl) var(--space-md);
+    }
+
+    .hero-subtitle {
+        font-size: 0.7rem;
+        letter-spacing: 0.1em;
+    }
+
+    .cta-button {
+        padding: var(--space-md) var(--space-xl);
+        font-size: 1rem;
+    }
+
+    .features-grid {
+        flex-direction: column;
+        gap: var(--space-md);
+    }
+
+    .footer-content {
+        flex-direction: column;
+        gap: var(--space-md);
+        text-align: center;
+    }
+
+    .sponsor-section {
+        flex-direction: column;
+        gap: var(--space-sm);
+    }
+}
+
+/* ===================================
+   DYNAMIC BACKDROP
+   =================================== */
+
+.dynamic-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 0;
+    overflow: hidden;
+}
+
+/* Floating orbs */
+.orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.15;
+}
+
+.orb-1 {
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, var(--accent-rust) 0%, transparent 70%);
+    top: -200px;
+    right: -100px;
+    animation: float1 20s ease-in-out infinite;
+}
+
+.orb-2 {
+    width: 400px;
+    height: 400px;
+    background: radial-gradient(circle, var(--accent-rust-dark) 0%, transparent 70%);
+    bottom: -100px;
+    left: -100px;
+    animation: float2 25s ease-in-out infinite;
+}
+
+.orb-3 {
+    width: 300px;
+    height: 300px;
+    background: radial-gradient(circle, rgba(245, 240, 232, 0.3) 0%, transparent 70%);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    animation: float3 15s ease-in-out infinite;
+}
+
+@keyframes float1 {
+
+    0%,
+    100% {
+        transform: translate(0, 0) scale(1);
+    }
+
+    25% {
+        transform: translate(-50px, 100px) scale(1.1);
+    }
+
+    50% {
+        transform: translate(-100px, 50px) scale(0.95);
+    }
+
+    75% {
+        transform: translate(-30px, -50px) scale(1.05);
+    }
+}
+
+@keyframes float2 {
+
+    0%,
+    100% {
+        transform: translate(0, 0) scale(1);
+    }
+
+    33% {
+        transform: translate(80px, -60px) scale(1.15);
+    }
+
+    66% {
+        transform: translate(40px, -100px) scale(0.9);
+    }
+}
+
+@keyframes float3 {
+
+    0%,
+    100% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 0.1;
+    }
+
+    50% {
+        transform: translate(-50%, -50%) scale(1.3);
+        opacity: 0.2;
+    }
+}
+
+/* Floating lines */
+.floating-line {
+    position: absolute;
+    height: 1px;
+    background: linear-gradient(90deg,
+            transparent,
+            var(--accent-rust-glow),
+            var(--accent-rust),
+            var(--accent-rust-glow),
+            transparent);
+    opacity: 0.3;
+}
+
+.line-1 {
+    width: 200px;
+    top: 20%;
+    left: -200px;
+    animation: lineFloat1 8s linear infinite;
+}
+
+.line-2 {
+    width: 150px;
+    top: 60%;
+    left: -150px;
+    animation: lineFloat2 12s linear infinite;
+    animation-delay: 3s;
+}
+
+.line-3 {
+    width: 100px;
+    top: 40%;
+    left: -100px;
+    animation: lineFloat3 10s linear infinite;
+    animation-delay: 6s;
+}
+
+@keyframes lineFloat1 {
+    0% {
+        left: -200px;
+        opacity: 0;
+    }
+
+    10% {
+        opacity: 0.4;
+    }
+
+    90% {
+        opacity: 0.4;
+    }
+
+    100% {
+        left: 100%;
+        opacity: 0;
+    }
+}
+
+@keyframes lineFloat2 {
+    0% {
+        left: -150px;
+        opacity: 0;
+    }
+
+    10% {
+        opacity: 0.3;
+    }
+
+    90% {
+        opacity: 0.3;
+    }
+
+    100% {
+        left: 100%;
+        opacity: 0;
+    }
+}
+
+@keyframes lineFloat3 {
+    0% {
+        left: -100px;
+        opacity: 0;
+    }
+
+    10% {
+        opacity: 0.25;
+    }
+
+    90% {
+        opacity: 0.25;
+    }
+
+    100% {
+        left: 100%;
+        opacity: 0;
+    }
+}
+
+/* Pulse rings */
+.pulse-ring {
+    position: absolute;
+    border: 1px solid var(--accent-rust);
+    border-radius: 50%;
+    opacity: 0;
+}
+
+.ring-1 {
+    width: 100px;
+    height: 100px;
+    top: 30%;
+    right: 15%;
+    animation: pulseRing 4s ease-out infinite;
+}
+
+.ring-2 {
+    width: 80px;
+    height: 80px;
+    bottom: 25%;
+    left: 10%;
+    animation: pulseRing 5s ease-out infinite;
+    animation-delay: 2s;
+}
+
+.ring-3 {
+    width: 120px;
+    height: 120px;
+    top: 50%;
+    left: 50%;
+    animation: pulseRing 6s ease-out infinite;
+    animation-delay: 1s;
+}
+
+@keyframes pulseRing {
+    0% {
+        transform: scale(0.5);
+        opacity: 0.5;
+    }
+
+    100% {
+        transform: scale(3);
+        opacity: 0;
+    }
+}
+
+/* Additional orb */
+.orb-4 {
+    width: 200px;
+    height: 200px;
+    background: radial-gradient(circle, rgba(196, 92, 62, 0.4) 0%, transparent 70%);
+    top: 60%;
+    right: 30%;
+    animation: float4 18s ease-in-out infinite;
+    filter: blur(60px);
+}
+
+@keyframes float4 {
+
+    0%,
+    100% {
+        transform: translate(0, 0) scale(1);
+    }
+
+    50% {
+        transform: translate(-80px, -60px) scale(1.2);
+    }
+}
+
+/* Additional floating lines */
+.line-4 {
+    width: 180px;
+    top: 80%;
+    left: -180px;
+    animation: lineFloat1 9s linear infinite;
+    animation-delay: 2s;
+}
+
+.line-5 {
+    width: 120px;
+    top: 15%;
+    left: -120px;
+    animation: lineFloat2 7s linear infinite;
+    animation-delay: 4s;
+}
+
+/* ===================================
+   DNA HELIX
+   =================================== */
+
+.dna-helix {
+    position: absolute;
+    right: 5%;
+    top: 20%;
+    height: 60%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    opacity: 0.15;
+}
+
+.dna-strand {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    animation: dnaWave 2s ease-in-out infinite;
+}
+
+.dna-node {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent-rust);
+    box-shadow: 0 0 10px var(--accent-rust-glow);
+}
+
+.dna-node.left {
+    animation: dnaNodeLeft 2s ease-in-out infinite;
+}
+
+.dna-node.right {
+    animation: dnaNodeRight 2s ease-in-out infinite;
+}
+
+.dna-bridge {
+    width: 30px;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent-rust), var(--text-dim), var(--accent-rust));
+    opacity: 0.5;
+}
+
+@keyframes dnaWave {
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    50% {
+        transform: translateX(15px);
+    }
+}
+
+@keyframes dnaNodeLeft {
+
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: scale(0.6);
+        opacity: 0.5;
+    }
+}
+
+@keyframes dnaNodeRight {
+
+    0%,
+    100% {
+        transform: scale(0.6);
+        opacity: 0.5;
+    }
+
+    50% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* ===================================
+   EKG HEARTBEAT LINES
+   =================================== */
+
+.ekg-container {
+    position: absolute;
+    width: 300px;
+    height: 40px;
+    overflow: hidden;
+    opacity: 0.25;
+}
+
+.ekg-1 {
+    bottom: 30%;
+    left: 5%;
+}
+
+.ekg-2 {
+    top: 15%;
+    right: 20%;
+    transform: scaleX(-1);
+}
+
+.ekg-line {
+    width: 200%;
+    height: 100%;
+}
+
+.ekg-path {
+    fill: none;
+    stroke: var(--accent-rust);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    animation: ekgPulse 2s linear infinite;
+    filter: drop-shadow(0 0 4px var(--accent-rust-glow));
+}
+
+@keyframes ekgPulse {
+    0% {
+        transform: translateX(0);
+    }
+
+    100% {
+        transform: translateX(-50%);
+    }
+}
+
+/* ===================================
+   NEURAL NETWORK
+   =================================== */
+
+.neural-network {
+    position: absolute;
+    left: 3%;
+    top: 15%;
+    width: 25%;
+    height: 50%;
+    opacity: 0.12;
+}
+
+.neural-node {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: var(--accent-rust);
+    border-radius: 50%;
+    box-shadow: 0 0 15px var(--accent-rust-glow);
+    animation: neuralPulse 3s ease-in-out infinite;
+}
+
+@keyframes neuralPulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 0.5;
+    }
+
+    50% {
+        transform: scale(1.5);
+        opacity: 1;
+    }
+}
+
+.neural-connections {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+}
+
+.neural-line {
+    stroke: var(--accent-rust);
+    stroke-width: 0.5;
+    opacity: 0;
+    animation: neuralFire 4s ease-in-out infinite;
+}
+
+@keyframes neuralFire {
+
+    0%,
+    100% {
+        opacity: 0;
+    }
+
+    50% {
+        opacity: 0.8;
+    }
+}
+
+/* ===================================
+   DATA STREAMS
+   =================================== */
+
+.data-stream {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.stream-1 {
+    right: 12%;
+    top: 10%;
+    animation: dataStreamFloat 15s linear infinite;
+}
+
+.stream-2 {
+    left: 8%;
+    bottom: 20%;
+    animation: dataStreamFloat 12s linear infinite reverse;
+    animation-delay: 3s;
+}
+
+.stream-3 {
+    right: 25%;
+    bottom: 35%;
+    animation: dataStreamFloat 18s linear infinite;
+    animation-delay: 6s;
+}
+
+.data-bit {
+    width: 3px;
+    height: 15px;
+    background: linear-gradient(180deg, transparent, var(--accent-rust), transparent);
+    opacity: 0;
+    animation: dataBitFall 1.5s ease-in-out infinite;
+}
+
+.data-bit:nth-child(1) {
+    animation-delay: 0s;
+}
+
+.data-bit:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.data-bit:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+.data-bit:nth-child(4) {
+    animation-delay: 0.6s;
+}
+
+.data-bit:nth-child(5) {
+    animation-delay: 0.8s;
+}
+
+.data-bit:nth-child(6) {
+    animation-delay: 1s;
+}
+
+@keyframes dataBitFall {
+    0% {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    50% {
+        opacity: 0.6;
+    }
+
+    100% {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+}
+
+@keyframes dataStreamFloat {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-30px);
+    }
+}
+
+/* ===================================
+   HEXAGONAL GRID
+   =================================== */
+
+.hex-grid {
+    position: absolute;
+    bottom: 10%;
+    right: 8%;
+    display: grid;
+    grid-template-columns: repeat(4, 40px);
+    gap: 8px;
+    opacity: 0.1;
+    transform: rotate(-15deg);
+}
+
+.hex-cell {
+    width: 40px;
+    height: 46px;
+    background: transparent;
+    position: relative;
+    animation: hexPulse 4s ease-in-out infinite;
+}
+
+.hex-cell::before {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    border: 1px solid var(--accent-rust);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+}
+
+@keyframes hexPulse {
+
+    0%,
+    100% {
+        opacity: 0.3;
+    }
+
+    50% {
+        opacity: 1;
+    }
+}
+
+/* ===================================
+   FLOATING PARTICLES
+   =================================== */
+
+.particles {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.particle {
+    position: absolute;
+    width: 3px;
+    height: 3px;
+    background: var(--accent-rust);
+    border-radius: 50%;
+    bottom: -10px;
+    opacity: 0;
+    animation: particleRise linear infinite;
+}
+
+@keyframes particleRise {
+    0% {
+        opacity: 0;
+        transform: translateY(0) scale(0.5);
+    }
+
+    10% {
+        opacity: 0.6;
+    }
+
+    90% {
+        opacity: 0.6;
+    }
+
+    100% {
+        opacity: 0;
+        transform: translateY(-100vh) scale(1);
+    }
+}
+
+/* ===================================
+   LIGHT MODE OVERRIDES
+   =================================== */
+
+[data-theme="light"] .dynamic-backdrop {
+    opacity: 0.6;
+}
+
+[data-theme="light"] .orb {
+    filter: blur(100px);
+    opacity: 0.2;
+}
+
+[data-theme="light"] .grid-overlay {
+    opacity: 0.02;
+}
+
+[data-theme="light"] .dna-helix {
+    opacity: 0.1;
+}
+
+[data-theme="light"] .ekg-container {
+    opacity: 0.15;
+}
+
+[data-theme="light"] .neural-network {
+    opacity: 0.08;
+}
+
+[data-theme="light"] .hex-grid {
+    opacity: 0.08;
+}
+
+[data-theme="light"] .particles .particle {
+    background: var(--accent-rust-dark);
+}
+
+[data-theme="light"] .floating-line {
+    opacity: 0.2;
+}
+
+[data-theme="light"] .pulse-ring {
+    border-color: var(--accent-rust-dark);
+}
