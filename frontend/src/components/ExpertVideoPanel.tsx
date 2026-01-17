@@ -51,11 +51,7 @@ export default function ExpertVideoPanel({
   onKeyPointsExtracted,
 }: ExpertVideoPanelProps) {
   const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [inputType, setInputType] = useState<'file' | 'url'>('file');
-  const [inputUrl, setInputUrl] = useState('');
-  const [youtubeUrl, setYoutubeUrl] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
   const visionRef = useRef<RealtimeVision | null>(null);
   const notesAccumulatorRef = useRef<string[]>([]);
 
@@ -66,26 +62,9 @@ export default function ExpertVideoPanel({
     }
   };
 
-  const handleUrlSubmit = () => {
-    if (inputUrl) {
-      setYoutubeUrl(inputUrl);
-      // For YouTube URLs, we'll use a simplified analysis approach
-      startYouTubeAnalysis();
-    }
-  };
-
-  const getEmbedUrl = (url: string) => {
-    try {
-      const videoId = url.split('v=')[1]?.split('&')[0] || url.split('/').pop();
-      return `https://www.youtube.com/embed/${videoId}`;
-    } catch (e) {
-      return url;
-    }
-  };
-
   // Start analysis when video file is set
   useEffect(() => {
-    if (videoFile && videoRef.current) {
+    if (videoFile) {
       startFileAnalysis();
     }
   }, [videoFile]);
@@ -93,8 +72,12 @@ export default function ExpertVideoPanel({
   const startFileAnalysis = async () => {
     if (!videoFile) return;
 
+    console.log('Starting Overshoot analysis for file:', videoFile.name);
     onAnalysisStart();
     notesAccumulatorRef.current = [];
+
+    // Show initial status
+    onNotesUpdate(`Starting AI analysis of "${videoFile.name}"...`);
 
     try {
       const vision = new RealtimeVision({
@@ -102,58 +85,50 @@ export default function ExpertVideoPanel({
         apiKey: OVERSHOOT_API_KEY,
         prompt: ANALYSIS_PROMPT,
         source: { type: 'video', file: videoFile },
+        processing: {
+          clip_length_seconds: 2,  // 2 second windows for more context
+          delay_seconds: 2,        // Get results every 2 seconds
+          fps: 15,                 // Lower FPS for file processing
+          sampling_ratio: 0.2,     // Sample 20% of frames
+        },
         onResult: (result: any) => {
-          const note = result.result || result.text || JSON.stringify(result);
-          if (note && note.trim()) {
+          console.log('Overshoot result received:', result);
+          const note = result.result || result.text || result.message || (typeof result === 'string' ? result : JSON.stringify(result));
+          if (note && note.trim() && note !== '{}') {
             notesAccumulatorRef.current.push(note);
             onNotesUpdate(note);
           }
         },
+        onError: (error: any) => {
+          console.error('Overshoot onError:', error);
+          onNotesUpdate(`API Error: ${error.message || error}`);
+        },
       });
 
       visionRef.current = vision;
+      console.log('Starting vision.start()...');
+      onNotesUpdate('Connecting to Overshoot AI...');
       await vision.start();
+      console.log('vision.start() completed');
+      onNotesUpdate('Processing video frames...');
 
-      // Wait for video to complete, then extract key points
-      if (videoRef.current) {
-        videoRef.current.onended = () => {
-          completeAnalysis();
-        };
-      }
-
-      // Fallback timeout in case video end event doesn't fire
+      // Fallback timeout - complete analysis after 15 seconds if no results
       setTimeout(() => {
         if (!analysisComplete) {
+          console.log('Fallback timeout triggered - completing analysis');
+          if (notesAccumulatorRef.current.length === 0) {
+            onNotesUpdate('Analysis complete - no observations generated from this video segment.');
+          }
           completeAnalysis();
         }
-      }, 60000); // 60 second max
+      }, 15000); // 15 second timeout for demo
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Overshoot analysis error:', error);
+      onNotesUpdate(`Error: ${error.message || 'Failed to analyze video. Check console for details.'}`);
       // Fallback to completing with whatever notes we have
-      completeAnalysis();
+      setTimeout(() => completeAnalysis(), 2000);
     }
-  };
-
-  const startYouTubeAnalysis = () => {
-    onAnalysisStart();
-    notesAccumulatorRef.current = [];
-
-    // For YouTube, we simulate with a timeout since we can't directly access the video frames
-    // In production, this would require a backend service to download and process the video
-    onNotesUpdate('Analyzing YouTube video stream...');
-
-    setTimeout(() => {
-      onNotesUpdate('Observing surgical technique demonstration...');
-    }, 2000);
-
-    setTimeout(() => {
-      onNotesUpdate('Noting instrument handling and procedural approach...');
-    }, 4000);
-
-    setTimeout(() => {
-      completeAnalysis();
-    }, 6000);
   };
 
   const completeAnalysis = async () => {
@@ -222,8 +197,6 @@ export default function ExpertVideoPanel({
 
   const handleReset = () => {
     setVideoFile(null);
-    setYoutubeUrl('');
-    setInputUrl('');
   };
 
   return (
@@ -231,114 +204,52 @@ export default function ExpertVideoPanel({
       <CornerBrackets size="md" animated>
         <div className="h-full flex flex-col bg-[rgba(0,0,0,0.3)] [data-theme='light']:bg-[rgba(0,0,0,0.05)]">
           <div className="flex border-b border-[rgba(255,255,255,0.1)] [data-theme='light']:border-border-accent">
-            <button
-              className={`flex-1 bg-transparent border-none px-4 py-4 text-text-muted cursor-pointer uppercase text-xs tracking-wider transition-all duration-200 hover:text-text-cream hover:bg-[rgba(255,255,255,0.05)] [data-theme='light']:hover:bg-[rgba(0,0,0,0.05)] ${inputType === 'file' ? 'text-accent-rust border-b-2 border-accent-rust bg-accent-rust-glow' : ''}`}
-              onClick={() => setInputType('file')}
-            >
+            <div className="flex-1 bg-transparent px-4 py-4 text-accent-rust uppercase text-xs tracking-wider border-b-2 border-accent-rust bg-accent-rust-glow">
               File Upload
-            </button>
-            <button
-              className={`flex-1 bg-transparent border-none px-4 py-4 text-text-muted cursor-pointer uppercase text-xs tracking-wider transition-all duration-200 hover:text-text-cream hover:bg-[rgba(255,255,255,0.05)] [data-theme='light']:hover:bg-[rgba(0,0,0,0.05)] ${inputType === 'url' ? 'text-accent-rust border-b-2 border-accent-rust bg-accent-rust-glow' : ''}`}
-              onClick={() => setInputType('url')}
-            >
-              YouTube URL
-            </button>
+            </div>
           </div>
 
-          {inputType === 'file' && (
-            <div
-              className={`h-full min-h-[400px] flex items-center justify-center cursor-pointer transition-all duration-300 border border-dashed border-[rgba(255,255,255,0.1)] [data-theme='light']:bg-[rgba(0,0,0,0.05)] [data-theme='light']:border-border-accent hover:bg-[rgba(0,180,216,0.05)] hover:border-accent-rust`}
-              onClick={() => !videoFile && fileInputRef.current?.click()}
-            >
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileUpload}
-                accept="video/*"
-                hidden
-              />
-              {videoFile ? (
-                <div className="text-center">
-                  <span className="text-accent-rust">VIDEO_FILE</span>
-                  <p>{videoFile.name}</p>
-                  {isAnalyzing && (
-                    <div className="w-[200px] h-1 bg-[rgba(255,255,255,0.1)] mx-auto my-4 rounded overflow-hidden [data-theme='light']:bg-[rgba(0,0,0,0.1)]">
-                      <div className="h-full bg-accent-rust w-0 animate-[fillBar_3s_ease-out_forwards]" />
-                    </div>
-                  )}
-                  {analysisComplete && (
-                    <div className="mt-2 px-3 py-1 text-xs text-success border border-success uppercase">ANALYSIS COMPLETE</div>
-                  )}
-                  <button
-                    className="mt-2 bg-transparent border-none text-text-muted underline cursor-pointer text-xs hover:text-error"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleReset();
-                    }}
-                  >
-                    Remove
-                  </button>
-                </div>
-              ) : (
-                <div className="text-center">
-                  <span className="text-5xl block mb-4 text-accent-rust">↑</span>
-                  <p>Upload Surgical Procedure Video</p>
-                  <span className="text-xs text-text-dim">MP4, MOV supported</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {inputType === 'url' && (
-            <div className="flex-1 flex items-center justify-center p-8 min-h-[350px]">
-              {!youtubeUrl ? (
-                <div className="w-full max-w-[400px] flex flex-col gap-4">
-                  <input
-                    type="text"
-                    className="w-full px-4 py-3 bg-[rgba(0,0,0,0.2)] border border-[rgba(255,255,255,0.1)] rounded text-text-cream text-base [data-theme='light']:bg-white [data-theme='light']:border-border-subtle"
-                    placeholder="Paste YouTube URL here..."
-                    value={inputUrl}
-                    onChange={(e) => setInputUrl(e.target.value)}
-                  />
-                  <button
-                    className="px-6 py-3 font-display tracking-wider text-text-cream bg-accent-rust border-2 border-accent-rust transition-all duration-250 hover:bg-accent-rust-light hover:border-accent-rust-light disabled:opacity-50"
-                    onClick={handleUrlSubmit}
-                    disabled={!inputUrl}
-                  >
-                    Analyze Video
-                  </button>
-                </div>
-              ) : (
-                <div className="w-full h-full min-h-[400px] relative flex flex-col">
-                  <iframe
-                    width="100%"
-                    height="100%"
-                    className="flex-1 rounded bg-black"
-                    src={getEmbedUrl(youtubeUrl)}
-                    frameBorder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  ></iframe>
-                  {isAnalyzing && (
-                    <div className="w-[200px] h-1 bg-[rgba(255,255,255,0.1)] mx-auto my-4 rounded overflow-hidden [data-theme='light']:bg-[rgba(0,0,0,0.1)]">
-                      <div className="h-full bg-accent-rust w-0 animate-[fillBar_3s_ease-out_forwards]" />
-                    </div>
-                  )}
-                  {analysisComplete && (
-                    <div className="mt-2 px-3 py-1 text-xs text-success border border-success uppercase text-center">ANALYSIS COMPLETE</div>
-                  )}
-                  <button
-                    className="mt-2 bg-transparent border-none text-text-muted underline cursor-pointer text-xs hover:text-error self-center"
-                    onClick={() => {
-                      handleReset();
-                    }}
-                  >
-                    Change Video
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
+          <div
+            className={`h-full min-h-[400px] flex items-center justify-center cursor-pointer transition-all duration-300 border border-dashed border-[rgba(255,255,255,0.1)] [data-theme='light']:bg-[rgba(0,0,0,0.05)] [data-theme='light']:border-border-accent hover:bg-[rgba(0,180,216,0.05)] hover:border-accent-rust`}
+            onClick={() => !videoFile && fileInputRef.current?.click()}
+          >
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              accept="video/*"
+              hidden
+            />
+            {videoFile ? (
+              <div className="text-center">
+                <span className="text-accent-rust">VIDEO_FILE</span>
+                <p>{videoFile.name}</p>
+                {isAnalyzing && (
+                  <div className="w-[200px] h-1 bg-[rgba(255,255,255,0.1)] mx-auto my-4 rounded overflow-hidden [data-theme='light']:bg-[rgba(0,0,0,0.1)]">
+                    <div className="h-full bg-accent-rust w-0 animate-[fillBar_3s_ease-out_forwards]" />
+                  </div>
+                )}
+                {analysisComplete && (
+                  <div className="mt-2 px-3 py-1 text-xs text-success border border-success uppercase">ANALYSIS COMPLETE</div>
+                )}
+                <button
+                  className="mt-2 bg-transparent border-none text-text-muted underline cursor-pointer text-xs hover:text-error"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleReset();
+                  }}
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <div className="text-center">
+                <span className="text-5xl block mb-4 text-accent-rust">↑</span>
+                <p>Upload Surgical Procedure Video</p>
+                <span className="text-xs text-text-dim">MP4, MOV supported</span>
+              </div>
+            )}
+          </div>
         </div>
       </CornerBrackets>
     </div>

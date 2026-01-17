@@ -60,10 +60,10 @@ export function useWebSocket(sessionId: any, options: any = {}) {
                 console.log('WebSocket disconnected');
                 setIsConnected(false);
 
-                // Auto-reconnect
-                if (autoReconnect) {
-                    reconnectTimeoutRef.current = setTimeout(connect, 3000);
-                }
+                // Auto-reconnect disabled for demo
+                // if (autoReconnect) {
+                //     reconnectTimeoutRef.current = setTimeout(connect, 3000);
+                // }
             };
 
             ws.onerror = (err: any) => {
