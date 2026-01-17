@@ -110,9 +110,6 @@ const VideoFeed = forwardRef(function VideoFeed({
                 <div className="reticle reticle-bl" />
                 <div className="reticle reticle-br" />
 
-                {/* Scan line */}
-                <div className="scan-line" />
-
                 {/* Grid overlay */}
                 <div className="grid-lines" />
 

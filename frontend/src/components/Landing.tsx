@@ -1,6 +1,5 @@
 import { useNavigate } from 'react-router-dom';
 import CornerBrackets from './CornerBrackets';
-import { FloatingMetadata } from './MetadataDisplay';
 import ThemeToggle from './ThemeToggle';
 
 import './Landing.css';
@@ -8,41 +7,12 @@ import './Landing.css';
 export default function Landing() {
     const navigate = useNavigate();
 
-    const currentDate = new Date().toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: '2-digit'
-    }).toUpperCase();
-
-    const currentTime = new Date().toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-    });
-
     return (
         <div className="landing">
             {/* Theme toggle */}
             <div className="theme-toggle-container">
                 <ThemeToggle />
             </div>
-            {/* Floating metadata overlays */}
-            <FloatingMetadata
-                position="top-left"
-                items={[
-                    { label: 'System Status', value: 'Online' },
-                    { label: 'Protocol', value: 'SURGICAL-v1.0' },
-                ]}
-            />
-
-            <FloatingMetadata
-                position="top-right"
-                items={[
-                    { label: 'Location', value: '40.7128° N, 74.0060° W' },
-                    { label: 'Date', value: currentDate },
-                    { label: 'Time', value: currentTime },
-                ]}
-            />
 
             {/* Main content */}
             <main className="landing-content">
@@ -95,15 +65,6 @@ export default function Landing() {
                     </div>
                 </div>
             </main>
-
-            {/* Bottom metadata bar */}
-            <footer className="landing-footer">
-                <div className="footer-content">
-                    <div className="version-info">
-                        <span className="mono">SurgeonSight v1.0</span>
-                    </div>
-                </div>
-            </footer>
 
             {/* Decorative elements */}
             <div className="grid-overlay" />

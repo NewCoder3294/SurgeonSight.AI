@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CornerBrackets from './CornerBrackets';
-import { FloatingMetadata } from './MetadataDisplay';
 import FeedbackDisplay from './FeedbackDisplay';
 import VideoFeed from './VideoFeed';
 import ThemeToggle from './ThemeToggle';
@@ -204,9 +203,6 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
         }
     };
 
-    const corrections = feedbackHistory.filter(f => f.type === 'correction').length;
-    const encouragements = feedbackHistory.filter(f => f.type === 'encouragement').length;
-
     return (
         <div className="coaching-session">
             {/* Header */}
@@ -255,15 +251,6 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
                                 gripState={currentGrip || mockGrip}
                             />
                         </CornerBrackets>
-
-                        {/* Floating stats */}
-                        <FloatingMetadata
-                            position="bottom-left"
-                            items={[
-                                { label: 'Corrections', value: corrections.toString() },
-                                { label: 'Encouragements', value: encouragements.toString() },
-                            ]}
-                        />
                     </div>
 
                     {/* Sidebar */}
@@ -292,32 +279,6 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
                                     <span className="stat-value">{feedbackHistory.length}</span>
                                     <span className="stat-label">Total Feedback</span>
                                 </div>
-                                <div className="stat-item correction">
-                                    <span className="stat-value">{corrections}</span>
-                                    <span className="stat-label">Corrections</span>
-                                </div>
-                                <div className="stat-item encouragement">
-                                    <span className="stat-value">{encouragements}</span>
-                                    <span className="stat-label">Encouragements</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Recent history */}
-                        <div className="history-section">
-                            <h3 className="section-title">Recent</h3>
-                            <div className="history-list">
-                                {feedbackHistory.slice(-5).reverse().map((item: any) => (
-                                    <div key={item.id} className={`history-item ${item.type}`}>
-                                        <span className="history-time">{formatTime(item.timestamp)}</span>
-                                        <span className="history-message">{item.message}</span>
-                                    </div>
-                                ))}
-                                {feedbackHistory.length === 0 && (
-                                    <div className="history-empty">
-                                        <span>No feedback yet...</span>
-                                    </div>
-                                )}
                             </div>
                         </div>
 
@@ -330,6 +291,24 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
                             {backendConnected ? 'Force Feedback' : 'Simulate Feedback'}
                         </button>
                     </aside>
+
+                    {/* Recent history - Full Width Bottom */}
+                    <div className="history-section full-width">
+                        <h3 className="section-title">Recent Activity</h3>
+                        <div className="history-list horizontal">
+                            {feedbackHistory.slice(-5).reverse().map((item: any) => (
+                                <div key={item.id} className={`history-item ${item.type}`}>
+                                    <span className="history-time">{formatTime(item.timestamp)}</span>
+                                    <span className="history-message">{item.message}</span>
+                                </div>
+                            ))}
+                            {feedbackHistory.length === 0 && (
+                                <div className="history-empty">
+                                    <span>No feedback yet...</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 </div>
             </main>
         </div>

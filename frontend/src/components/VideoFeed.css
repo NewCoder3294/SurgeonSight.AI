@@ -57,31 +57,6 @@
     border-width: 0 2px 2px 0;
 }
 
-/* Scan line */
-.scan-line {
-    position: absolute;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: linear-gradient(90deg,
-            transparent 0%,
-            var(--accent-rust-glow) 20%,
-            var(--accent-rust) 50%,
-            var(--accent-rust-glow) 80%,
-            transparent 100%);
-    animation: scanDown 4s linear infinite;
-    opacity: 0.3;
-}
-
-@keyframes scanDown {
-    0% {
-        top: 0;
-    }
-
-    100% {
-        top: 100%;
-    }
-}
 
 /* Grid lines */
 .grid-lines {
