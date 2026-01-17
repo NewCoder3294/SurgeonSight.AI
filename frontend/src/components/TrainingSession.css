@@ -379,3 +379,34 @@
 .btn-text:hover {
     color: var(--error);
 }
+
+.summary-text {
+    line-height: 1.6;
+}
+
+.summary-text p {
+    margin: 0;
+    color: var(--text-cream);
+}
+
+.summary-error-note {
+    margin-top: 1rem;
+    padding: 0.5rem;
+    background: rgba(255, 100, 100, 0.1);
+    border: 1px solid rgba(255, 100, 100, 0.3);
+    border-radius: 4px;
+    color: var(--text-muted);
+}
+
+.summary-error-note small {
+    font-size: 0.75rem;
+}
+
+.keypoints-section {
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="light"] .keypoints-section {
+    border-top: 1px solid var(--border-subtle);
+}
