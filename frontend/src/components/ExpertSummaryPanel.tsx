@@ -1,6 +1,3 @@
-import { useState, useEffect } from 'react';
-import { fetchExpertSummary } from '../api/summaryApi';
-
 interface ExpertAnalysisPayload {
   procedure: string;
   stats: {
@@ -23,63 +20,40 @@ interface ExpertSummaryPanelProps {
   isAnalyzing: boolean;
   analysisComplete: boolean;
   expertAnalysisPayload: ExpertAnalysisPayload | null;
+  streamingNotes: string[];
   keyPoints: string[];
 }
 
-const MOCK_FALLBACK_SUMMARY =
-  'Mock Summary: Expert demonstrates stable alignment and controlled speed. Targets: keep angle within ±4°, avoid speed spikes, minimize jitter.';
-
 export default function ExpertSummaryPanel({
   isAnalyzing,
-  analysisComplete,
-  expertAnalysisPayload,
+  streamingNotes,
   keyPoints,
 }: ExpertSummaryPanelProps) {
-  const [summary, setSummary] = useState<string>('');
-  const [isLoadingSummary, setIsLoadingSummary] = useState(false);
-  const [summaryError, setSummaryError] = useState<boolean>(false);
-
-  useEffect(() => {
-    if (analysisComplete && expertAnalysisPayload) {
-      setIsLoadingSummary(true);
-      setSummaryError(false);
-
-      fetchExpertSummary(expertAnalysisPayload)
-        .then((fetchedSummary) => {
-          setSummary(fetchedSummary);
-          setIsLoadingSummary(false);
-        })
-        .catch((error) => {
-          console.error('Failed to fetch summary:', error);
-          setSummary(MOCK_FALLBACK_SUMMARY);
-          setSummaryError(true);
-          setIsLoadingSummary(false);
-        });
-    } else {
-      setSummary('');
-      setIsLoadingSummary(false);
-      setSummaryError(false);
-    }
-  }, [analysisComplete, expertAnalysisPayload]);
-
-  const isLoading = isAnalyzing || isLoadingSummary;
+  const hasNotes = streamingNotes.length > 0;
 
   return (
     <div className="row-start-1 col-start-2 min-h-[400px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] rounded-lg p-6 relative overflow-hidden [data-theme='light']:bg-[rgba(0,0,0,0.03)] [data-theme='light']:border-border-subtle">
       <h3 className="mt-0 mb-4 text-accent-rust text-sm uppercase tracking-wider flex items-center gap-2">
         <span>◈</span> AI Observation Log
       </h3>
-      <div className="flex-1">
-        {isLoading ? (
+      <div className="flex-1 max-h-[250px] overflow-y-auto">
+        {isAnalyzing && !hasNotes ? (
           <div className="text-text-muted italic text-center py-8">
-            {isAnalyzing ? 'AI Analyzing video frames...' : 'Generating summary...'}
+            AI Analyzing video frames...
           </div>
-        ) : summary ? (
-          <div className="leading-relaxed">
-            <p className="m-0 text-text-cream">{summary}</p>
-            {summaryError && (
-              <div className="mt-4 p-2 bg-[rgba(255,100,100,0.1)] border border-[rgba(255,100,100,0.3)] rounded text-text-muted">
-                <small className="text-xs">Note: Using fallback summary (backend unavailable)</small>
+        ) : hasNotes ? (
+          <div className="space-y-3">
+            {streamingNotes.map((note, i) => (
+              <div
+                key={i}
+                className="p-3 bg-[rgba(255,255,255,0.02)] border-l-2 border-accent-rust rounded-r text-text-cream text-sm leading-relaxed animate-fade-in"
+              >
+                {note}
+              </div>
+            ))}
+            {isAnalyzing && (
+              <div className="text-text-muted italic text-sm">
+                Analyzing...
               </div>
             )}
           </div>

@@ -23,23 +23,28 @@ interface ExpertAnalysisPayload {
   }>;
 }
 
-const MOCK_KEY_POINTS = [
-  'Maintain constant tension on the suture',
-  'Keep needle perpendicular to tissue',
-  'Rotate wrist fully for smooth exit',
-  'Watch spacing between sutures',
-];
-
 export default function TrainingSession() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisComplete, setAnalysisComplete] = useState(false);
   const [expertAnalysisPayload, setExpertAnalysisPayload] =
     useState<ExpertAnalysisPayload | null>(null);
+  const [streamingNotes, setStreamingNotes] = useState<string[]>([]);
+  const [keyPoints, setKeyPoints] = useState<string[]>([]);
 
   const handleAnalysisStart = () => {
     setIsAnalyzing(true);
     setAnalysisComplete(false);
     setExpertAnalysisPayload(null);
+    setStreamingNotes([]);
+    setKeyPoints([]);
+  };
+
+  const handleNotesUpdate = (note: string) => {
+    setStreamingNotes(prev => [...prev, note]);
+  };
+
+  const handleKeyPointsExtracted = (points: string[]) => {
+    setKeyPoints(points);
   };
 
   const handleAnalysisComplete = (payload: ExpertAnalysisPayload) => {
@@ -76,6 +81,8 @@ export default function TrainingSession() {
               analysisComplete={analysisComplete}
               onAnalysisStart={handleAnalysisStart}
               onAnalysisComplete={handleAnalysisComplete}
+              onNotesUpdate={handleNotesUpdate}
+              onKeyPointsExtracted={handleKeyPointsExtracted}
             />
 
             {/* Right: Summary Panel */}
@@ -83,7 +90,8 @@ export default function TrainingSession() {
               isAnalyzing={isAnalyzing}
               analysisComplete={analysisComplete}
               expertAnalysisPayload={expertAnalysisPayload}
-              keyPoints={analysisComplete ? MOCK_KEY_POINTS : []}
+              streamingNotes={streamingNotes}
+              keyPoints={keyPoints}
             />
           </div>
         </section>
@@ -91,9 +99,8 @@ export default function TrainingSession() {
         <div className="w-0.5 h-16 bg-gradient-to-b from-accent-rust to-transparent mx-auto opacity-30"></div>
 
         <section
-          className={`relative mt-16 transition-all duration-500 ${
-            !analysisComplete ? 'opacity-50 pointer-events-none blur-lg' : ''
-          }`}
+          className={`relative mt-16 transition-all duration-500 ${!analysisComplete ? 'opacity-50 pointer-events-none blur-lg' : ''
+            }`}
         >
           <div className="[&>div]:p-2 [&>div]:text-xl [&>div]:bg-gradient-to-r [&>div]:from-[rgba(255,255,255,0.05)] [&>div]:to-transparent [data-theme='light']:[&>div]:bg-gradient-to-r [data-theme='light']:[&>div]:from-[rgba(0,0,0,0.05)] [data-theme='light']:[&>div]:to-transparent">
             <CornerBrackets size="sm">
