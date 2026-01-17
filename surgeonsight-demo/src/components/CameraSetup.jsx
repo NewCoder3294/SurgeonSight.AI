@@ -75,7 +75,7 @@ export default function CameraSetup() {
 
             {/* Floating metadata */}
             <FloatingMetadata
-                position="top-right"
+                position="bottom-right"
                 items={[
                     { label: 'Resolution', value: '1280 × 720' },
                     { label: 'FPS', value: '30' },

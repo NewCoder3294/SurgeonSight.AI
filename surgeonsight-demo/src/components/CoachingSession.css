@@ -77,6 +77,7 @@
 .end-btn {
     padding: var(--space-sm) var(--space-lg);
     font-size: 0.85rem;
+    white-space: nowrap;
 }
 
 /* Connection status indicator */
@@ -189,23 +190,26 @@
 .stats-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: var(--space-sm);
+    gap: var(--space-xs);
 }
 
 .stat-item {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    padding: var(--space-sm);
+    justify-content: center;
+    gap: 0;
+    padding: var(--space-xs);
     background: var(--bg-primary);
     border: 1px solid var(--border-subtle);
+    min-height: 50px;
 }
 
 .stat-value {
     font-family: var(--font-display);
-    font-size: 1.5rem;
+    font-size: 1.25rem;
     letter-spacing: 0.05em;
     color: var(--text-cream);
+    line-height: 1.2;
 }
 
 .stat-label {

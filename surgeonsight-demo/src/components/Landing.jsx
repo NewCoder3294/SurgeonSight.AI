@@ -76,10 +76,7 @@ export default function Landing() {
                         </CornerBrackets>
                     </div>
 
-                    {/* Sponsor logos */}
-                    <div className="sponsor-section animate-fade-in-up" style={{ animationDelay: '0.5s' }}>
-                        <SponsorLogos compact />
-                    </div>
+
 
                     {/* Features grid */}
                     <div className="features-grid animate-fade-in-up" style={{ animationDelay: '0.6s' }}>
@@ -93,7 +90,7 @@ export default function Landing() {
                         </div>
                         <div className="feature-item">
                             <span className="feature-icon">◈</span>
-                            <span className="feature-text">140+ Languages</span>
+                            <span className="feature-text">Realtime Feedback</span>
                         </div>
                     </div>
                 </div>
@@ -102,19 +99,6 @@ export default function Landing() {
             {/* Bottom metadata bar */}
             <footer className="landing-footer">
                 <div className="footer-content">
-                    <div className="sponsor-section">
-                        <span className="sponsor-label">Powered By</span>
-                        <div className="sponsor-logos">
-                            <span className="sponsor-logo">LiveKit</span>
-                            <span className="sponsor-divider">·</span>
-                            <span className="sponsor-logo">Smallest.ai</span>
-                            <span className="sponsor-divider">·</span>
-                            <span className="sponsor-logo">Mastra</span>
-                            <span className="sponsor-divider">·</span>
-                            <span className="sponsor-logo">MediaPipe</span>
-                        </div>
-                    </div>
-
                     <div className="version-info">
                         <span className="mono">SurgeonSight v1.0</span>
                     </div>

@@ -44,6 +44,7 @@
 .summary-title .title-line {
     display: block;
     font-size: clamp(3rem, 10vw, 6rem);
+    color: var(--text-primary);
 }
 
 .summary-title .title-line.accent {
@@ -75,7 +76,7 @@
     font-family: var(--font-display);
     font-size: 6rem;
     letter-spacing: 0.02em;
-    color: var(--text-cream);
+    color: var(--text-primary);
     line-height: 1;
 }
 
@@ -114,8 +115,8 @@
 
 .stats-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: var(--space-md);
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-sm);
 }
 
 .stat-card {
@@ -152,7 +153,7 @@
     font-family: var(--font-display);
     font-size: 2rem;
     letter-spacing: 0.05em;
-    color: var(--text-cream);
+    color: var(--text-primary);
 }
 
 .stat-card.correction .stat-value {
