@@ -1,17 +1,16 @@
 import { Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
-import Landing from './components/Landing';
+import LandingPage from './pages/LandingPage';
 import CameraSetup from './components/CameraSetup';
 import CoachingSession from './components/CoachingSession';
-import TrainingSession from './components/TrainingSession';
-import './App.css';
+import TrainingSession from './pages/TrainingSession';
 
 function App() {
   return (
     <ThemeProvider>
-      <div className="app">
+      <div className="min-h-screen flex flex-col bg-bg-primary">
         <Routes>
-          <Route path="/" element={<Landing />} />
+          <Route path="/" element={<LandingPage />} />
           <Route path="/setup" element={<CameraSetup />} />
           {/* Standalone session route if needed, or we can replace it */}
           <Route path="/session" element={<CoachingSession />} />

@@ -65,39 +65,39 @@ export default function ExpertSummaryPanel({
   const isLoading = isAnalyzing || isLoadingSummary;
 
   return (
-    <div className="notes-panel panel-glass">
-      <h3>
-        <span className="icon">◈</span> AI Observation Log
+    <div className="row-start-1 col-start-2 min-h-[400px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] rounded-lg p-6 relative overflow-hidden [data-theme='light']:bg-[rgba(0,0,0,0.03)] [data-theme='light']:border-border-subtle">
+      <h3 className="mt-0 mb-4 text-accent-rust text-sm uppercase tracking-wider flex items-center gap-2">
+        <span>◈</span> AI Observation Log
       </h3>
-      <div className="notes-content">
+      <div className="flex-1">
         {isLoading ? (
-          <div className="typing-indicator">
+          <div className="text-text-muted italic text-center py-8">
             {isAnalyzing ? 'AI Analyzing video frames...' : 'Generating summary...'}
           </div>
         ) : summary ? (
-          <div className="summary-text">
-            <p>{summary}</p>
+          <div className="leading-relaxed">
+            <p className="m-0 text-text-cream">{summary}</p>
             {summaryError && (
-              <div className="summary-error-note">
-                <small>Note: Using fallback summary (backend unavailable)</small>
+              <div className="mt-4 p-2 bg-[rgba(255,100,100,0.1)] border border-[rgba(255,100,100,0.3)] rounded text-text-muted">
+                <small className="text-xs">Note: Using fallback summary (backend unavailable)</small>
               </div>
             )}
           </div>
         ) : (
-          <div className="empty-state">Upload video to generate observations</div>
+          <div className="text-text-muted italic text-center py-8">Upload video to generate observations</div>
         )}
       </div>
 
       {keyPoints.length > 0 && (
-        <div className="keypoints-section" style={{ marginTop: '1.5rem' }}>
-          <h4 style={{ fontSize: '0.85rem', marginBottom: '0.5rem', color: 'var(--accent-rust)' }}>
+        <div className="mt-6 pt-4 border-t border-[rgba(255,255,255,0.1)] [data-theme='light']:border-border-subtle">
+          <h4 className="text-sm mb-2 text-accent-rust">
             Critical Key Points
           </h4>
-          <div className="tags-container">
+          <div className="flex flex-wrap gap-3">
             {keyPoints.map((point, i) => (
               <span
                 key={i}
-                className="kp-tag animate-pop-in"
+                className="bg-[rgba(0,180,216,0.1)] text-accent-rust px-3 py-1.5 rounded text-sm border border-accent-rust-glow"
                 style={{ animationDelay: `${i * 0.1}s` }}
               >
                 {point}

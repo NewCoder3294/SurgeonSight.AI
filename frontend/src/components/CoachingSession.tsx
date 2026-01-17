@@ -7,7 +7,6 @@ import ThemeToggle from './ThemeToggle';
 import { useWebSocket, useVoiceFeedback } from '../hooks/useSession';
 import { useMockHandDetection } from '../hooks/useHandDetection';
 import { startSession, endSession } from '../utils/api';
-import './CoachingSession.css';
 
 // Demo feedback messages (fallback when backend not available)
 const DEMO_FEEDBACK = [
@@ -204,34 +203,34 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
     };
 
     return (
-        <div className="coaching-session">
+        <div className="min-h-screen flex flex-col bg-bg-primary">
             {/* Header */}
             {!embedded && (
-                <header className="session-header">
-                    <div className="header-left">
-                        <h2 className="session-title">SurgeonSight AI</h2>
-                        <div className="status-indicator">
-                            <span className={`status-dot ${isAnalyzing ? 'active' : 'success'}`} />
-                            <span className="status-text">
+                <header className="flex justify-between items-center px-8 py-4 border-b border-border-subtle bg-bg-secondary max-[600px]:flex-wrap max-[600px]:gap-2">
+                    <div className="flex items-center gap-6 max-[600px]:order-2">
+                        <h2 className="text-xl tracking-wider">SurgeonSight AI</h2>
+                        <div className="flex items-center gap-2">
+                            <span className={`w-2 h-2 rounded-full ${isAnalyzing ? 'bg-accent-rust animate-pulse' : 'bg-success'}`} />
+                            <span className="font-mono text-xs tracking-wider uppercase text-text-muted">
                                 {isAnalyzing ? 'Analyzing' : 'Detected'}
                             </span>
                         </div>
                         {/* Connection status */}
-                        <div className={`connection-status ${backendConnected ? 'connected' : 'offline'}`}>
+                        <div className={`font-mono text-xs tracking-wider px-1 py-0.5 border ${backendConnected ? 'text-success border-success' : 'text-text-dim border-border-subtle'}`}>
                             {backendConnected ? '● LIVE' : '○ DEMO'}
                         </div>
                     </div>
 
-                    <div className="header-center">
-                        <div className="session-timer">
-                            <span className="timer-label">Session Time</span>
-                            <span className="timer-value">{formatTime(sessionTime)}</span>
+                    <div className="absolute left-1/2 -translate-x-1/2 max-[600px]:static max-[600px]:transform-none max-[600px]:order-1 max-[600px]:w-full max-[600px]:flex max-[600px]:justify-center">
+                        <div className="flex flex-col items-center gap-0.5">
+                            <span className="font-mono text-[0.55rem] tracking-widest uppercase text-text-dim">Session Time</span>
+                            <span className="font-mono text-2xl tracking-wider text-accent-rust">{formatTime(sessionTime)}</span>
                         </div>
                     </div>
 
-                    <div className="header-right">
+                    <div className="flex items-center gap-4 max-[600px]:order-3">
                         <ThemeToggle />
-                        <button className="btn btn-danger end-btn" onClick={handleEndSession}>
+                        <button className="px-6 py-2 text-sm font-display tracking-wider text-text-cream bg-error border-2 border-error transition-all duration-250 hover:bg-error/80 hover:border-error/80 whitespace-nowrap" onClick={handleEndSession}>
                             End Session
                         </button>
                     </div>
@@ -239,10 +238,10 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
             )}
 
             {/* Main content */}
-            <main className="session-content">
-                <div className="session-layout">
+            <main className="flex-1 p-6 flex max-[1000px]:flex-col">
+                <div className="grid grid-cols-[1fr_340px] gap-6 w-full max-w-[1400px] mx-auto max-[1000px]:grid-cols-1">
                     {/* Video feed */}
-                    <div className="video-section">
+                    <div className="relative flex flex-col">
                         <CornerBrackets size="xl" animated>
                             <VideoFeed
                                 ref={videoFeedRef}
@@ -254,37 +253,63 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
                     </div>
 
                     {/* Sidebar */}
-                    <aside className="session-sidebar">
+                    <aside className="flex flex-col gap-6 max-[1000px]:flex-row max-[1000px]:flex-wrap max-[1000px]:[&>*]:flex-1 max-[1000px]:[&>*]:min-w-[200px]">
                         {/* Current feedback */}
-                        <div className="feedback-section">
-                            <h3 className="section-title">Current Feedback</h3>
+                        <div className="bg-bg-secondary border border-border-subtle p-4">
+                            <h3 className="text-sm tracking-widest mb-4 pb-1 border-b border-border-subtle text-text-muted">Current Feedback</h3>
                             <FeedbackDisplay feedback={currentFeedback} />
                             {isSpeaking && (
-                                <div className="speaking-indicator">
-                                    <span className="speaking-dot" />
+                                <div className="flex items-center gap-2 mt-2 px-1 py-0.5 bg-bg-tertiary font-mono text-xs tracking-wider text-accent-rust">
+                                    <span className="w-2 h-2 rounded-full bg-accent-rust animate-pulse" />
                                     Speaking...
                                 </div>
                             )}
                         </div>
 
                         {/* Session stats */}
-                        <div className="stats-section">
-                            <h3 className="section-title">Session Stats</h3>
-                            <div className="stats-grid">
-                                <div className="stat-item">
-                                    <span className="stat-value">{formatTime(sessionTime)}</span>
-                                    <span className="stat-label">Duration</span>
+                        <div className="bg-bg-secondary border border-border-subtle p-4">
+                            <h3 className="text-sm tracking-widest mb-4 pb-1 border-b border-border-subtle text-text-muted">Session Stats</h3>
+                            <div className="grid grid-cols-2 gap-1">
+                                <div className="flex flex-col justify-center gap-0 p-1 bg-bg-primary border border-border-subtle min-h-[50px]">
+                                    <span className="font-display text-xl tracking-wider text-text-cream leading-tight">{formatTime(sessionTime)}</span>
+                                    <span className="font-mono text-[0.55rem] tracking-wider uppercase text-text-dim">Duration</span>
                                 </div>
-                                <div className="stat-item">
-                                    <span className="stat-value">{feedbackHistory.length}</span>
-                                    <span className="stat-label">Total Feedback</span>
+                                <div className="flex flex-col justify-center gap-0 p-1 bg-bg-primary border border-border-subtle min-h-[50px]">
+                                    <span className="font-display text-xl tracking-wider text-text-cream leading-tight">{feedbackHistory.length}</span>
+                                    <span className="font-mono text-[0.55rem] tracking-wider uppercase text-text-dim">Total Feedback</span>
                                 </div>
+                                <div className="flex flex-col justify-center gap-0 p-1 bg-bg-primary border border-border-subtle min-h-[50px]">
+                                    <span className="font-display text-xl tracking-wider text-accent-rust leading-tight">{corrections}</span>
+                                    <span className="font-mono text-[0.55rem] tracking-wider uppercase text-text-dim">Corrections</span>
+                                </div>
+                                <div className="flex flex-col justify-center gap-0 p-1 bg-bg-primary border border-border-subtle min-h-[50px]">
+                                    <span className="font-display text-xl tracking-wider text-success leading-tight">{encouragements}</span>
+                                    <span className="font-mono text-[0.55rem] tracking-wider uppercase text-text-dim">Encouragements</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Recent history */}
+                        <div className="bg-bg-secondary border border-border-subtle p-4 flex-1 min-h-[200px] flex flex-col max-[1000px]:min-h-[150px]">
+                            <h3 className="text-sm tracking-widest mb-4 pb-1 border-b border-border-subtle text-text-muted">Recent</h3>
+                            <div className="flex-1 overflow-y-auto flex flex-col gap-1">
+                                {feedbackHistory.slice(-5).reverse().map((item: any) => (
+                                    <div key={item.id} className={`flex gap-2 p-2 bg-bg-primary border-l-2 animate-[slideInLeft_0.3s_ease] ${item.type === 'correction' ? 'border-l-accent-rust' : item.type === 'encouragement' ? 'border-l-success' : 'border-l-border-subtle'}`}>
+                                        <span className="font-mono text-xs text-text-dim min-w-[40px]">{formatTime(item.timestamp)}</span>
+                                        <span className="font-body text-xs text-text-muted leading-snug">{item.message}</span>
+                                    </div>
+                                ))}
+                                {feedbackHistory.length === 0 && (
+                                    <div className="flex items-center justify-center h-full font-mono text-xs text-text-dim uppercase tracking-wider">
+                                        <span>No feedback yet...</span>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
                         {/* Manual trigger for demo */}
                         <button
-                            className="btn btn-secondary trigger-btn"
+                            className="mt-auto px-4 py-2 text-xs font-display tracking-wider text-text-cream bg-transparent border border-border-subtle transition-all duration-250 hover:border-accent-rust hover:text-accent-rust disabled:opacity-30 disabled:cursor-not-allowed"
                             onClick={triggerDemoFeedback}
                             disabled={feedbackIndex >= DEMO_FEEDBACK.length}
                         >

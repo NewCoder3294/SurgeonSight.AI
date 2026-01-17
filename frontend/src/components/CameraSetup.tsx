@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import CornerBrackets from './CornerBrackets';
 import { FloatingMetadata } from './MetadataDisplay';
 import ThemeToggle from './ThemeToggle';
-import './CameraSetup.css';
 
 export default function CameraSetup() {
     const navigate = useNavigate();
@@ -63,13 +62,16 @@ export default function CameraSetup() {
     };
 
     return (
-        <div className="camera-setup">
+        <div className="min-h-screen flex flex-col">
             {/* Header */}
-            <header className="setup-header">
-                <button className="back-btn" onClick={() => navigate('/')}>
+            <header className="flex justify-between items-center px-8 py-4 border-b border-border-subtle">
+                <button 
+                    className="font-mono text-xs tracking-wider text-text-muted bg-transparent border-none cursor-pointer px-4 py-2 transition-colors duration-150 hover:text-accent-rust" 
+                    onClick={() => navigate('/')}
+                >
                     ← Back
                 </button>
-                <h2 className="setup-title">Camera Setup</h2>
+                <h2 className="text-2xl tracking-wider">Camera Setup</h2>
                 <ThemeToggle />
             </header>
 
@@ -83,23 +85,23 @@ export default function CameraSetup() {
                 ]}
             />
 
-            <main className="setup-content">
-                <div className="setup-layout">
+            <main className="flex-1 p-12 flex items-center justify-center">
+                <div className="grid grid-cols-[1fr_320px] gap-12 max-w-[1200px] w-full max-[900px]:grid-cols-1 max-[900px]:gap-8">
                     {/* Video preview */}
-                    <div className="video-preview-container">
+                    <div className="flex justify-center items-center">
                         <CornerBrackets size="xl" animated={hasPermission}>
-                            <div className="video-preview">
+                            <div className="w-full max-w-[720px] aspect-video bg-bg-secondary border border-border-subtle relative overflow-hidden">
                                 {isLoading && (
-                                    <div className="loading-state">
-                                        <div className="loading-spinner" />
-                                        <span className="loading-text">Initializing Camera...</span>
+                                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-4">
+                                        <div className="w-10 h-10 border-2 border-border-subtle border-t-accent-rust rounded-full animate-spin" />
+                                        <span className="font-mono text-xs tracking-wider text-text-muted uppercase">Initializing Camera...</span>
                                     </div>
                                 )}
 
                                 {error && (
-                                    <div className="error-state">
-                                        <span className="error-icon">⚠</span>
-                                        <span className="error-text">{error}</span>
+                                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-4 text-center p-8">
+                                        <span className="text-4xl text-error">⚠</span>
+                                        <span className="font-mono text-xs text-error tracking-wider">{error}</span>
                                     </div>
                                 )}
 
@@ -108,12 +110,12 @@ export default function CameraSetup() {
                                     autoPlay
                                     playsInline
                                     muted
-                                    className={hasPermission ? 'visible' : 'hidden'}
+                                    className={`w-full h-full object-cover -scale-x-100 ${hasPermission ? 'block' : 'hidden'}`}
                                 />
 
                                 {hasPermission && (
-                                    <div className="video-overlay">
-                                        <div className="scan-line" />
+                                    <div className="absolute top-0 left-0 right-0 bottom-0 pointer-events-none">
+                                        <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-accent-rust-glow via-accent-rust via-accent-rust-glow to-transparent opacity-40 animate-scan-down" />
                                     </div>
                                 )}
                             </div>
@@ -121,11 +123,11 @@ export default function CameraSetup() {
                     </div>
 
                     {/* Sidebar */}
-                    <div className="setup-sidebar">
-                        <div className="checklist-section">
-                            <h3 className="section-title">Pre-Flight Check</h3>
+                    <div className="flex flex-col gap-12 max-[900px]:max-w-[400px] max-[900px]:mx-auto">
+                        <div className="flex flex-col gap-6">
+                            <h3 className="text-base tracking-widest mb-6 pb-2 border-b border-border-subtle">Pre-Flight Check</h3>
 
-                            <div className="checklist">
+                            <div className="flex flex-col gap-4">
                                 <ChecklistItem
                                     checked={checklist.lighting}
                                     label="Good Lighting"
@@ -144,10 +146,10 @@ export default function CameraSetup() {
                             </div>
                         </div>
 
-                        <div className="cta-section">
+                        <div className="mt-auto">
                             <CornerBrackets size="md">
                                 <button
-                                    className={`btn btn-primary begin-btn ${!allChecked ? 'disabled' : ''}`}
+                                    className={`w-full px-8 py-6 text-xl font-display tracking-wider text-text-cream bg-accent-rust border-2 border-accent-rust transition-all duration-250 hover:bg-accent-rust-light hover:border-accent-rust-light disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:transform-none disabled:hover:shadow-none ${!allChecked ? 'disabled' : ''}`}
                                     onClick={handleBeginSession}
                                     disabled={!allChecked}
                                 >
@@ -156,7 +158,7 @@ export default function CameraSetup() {
                             </CornerBrackets>
 
                             {!allChecked && (
-                                <p className="cta-hint">Complete all checks to begin</p>
+                                <p className="font-mono text-xs tracking-wider text-text-dim text-center mt-2 uppercase">Complete all checks to begin</p>
                             )}
                         </div>
                     </div>
@@ -168,13 +170,13 @@ export default function CameraSetup() {
 
 function ChecklistItem({ checked, label, description }: any) {
     return (
-        <div className={`checklist-item ${checked ? 'checked' : ''}`}>
-            <div className="checkbox">
-                {checked && <span className="check-mark">✓</span>}
+        <div className={`flex gap-4 p-4 bg-bg-secondary border transition-all duration-250 ${checked ? 'border-accent-rust' : 'border-border-subtle'}`}>
+            <div className={`w-6 h-6 border-2 flex items-center justify-center flex-shrink-0 transition-all duration-150 ${checked ? 'border-accent-rust bg-accent-rust' : 'border-border-accent'}`}>
+                {checked && <span className="text-text-cream text-sm font-bold">✓</span>}
             </div>
-            <div className="item-content">
-                <span className="item-label">{label}</span>
-                <span className="item-description">{description}</span>
+            <div className="flex flex-col gap-0.5">
+                <span className="font-display text-sm tracking-wider text-text-cream">{label}</span>
+                <span className="font-mono text-xs tracking-wider text-text-dim uppercase">{description}</span>
             </div>
         </div>
     );

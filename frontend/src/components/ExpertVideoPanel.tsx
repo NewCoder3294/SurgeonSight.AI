@@ -98,18 +98,18 @@ export default function ExpertVideoPanel({
   };
 
   return (
-    <div className="upload-panel">
+    <div className="row-start-1 col-start-1">
       <CornerBrackets size="md" animated>
-        <div className="upload-container">
-          <div className="upload-tabs">
+        <div className="h-full flex flex-col bg-[rgba(0,0,0,0.3)] [data-theme='light']:bg-[rgba(0,0,0,0.05)]">
+          <div className="flex border-b border-[rgba(255,255,255,0.1)] [data-theme='light']:border-border-accent">
             <button
-              className={`tab-btn ${inputType === 'file' ? 'active' : ''}`}
+              className={`flex-1 bg-transparent border-none px-4 py-4 text-text-muted cursor-pointer uppercase text-xs tracking-wider transition-all duration-200 hover:text-text-cream hover:bg-[rgba(255,255,255,0.05)] [data-theme='light']:hover:bg-[rgba(0,0,0,0.05)] ${inputType === 'file' ? 'text-accent-rust border-b-2 border-accent-rust bg-accent-rust-glow' : ''}`}
               onClick={() => setInputType('file')}
             >
               File Upload
             </button>
             <button
-              className={`tab-btn ${inputType === 'url' ? 'active' : ''}`}
+              className={`flex-1 bg-transparent border-none px-4 py-4 text-text-muted cursor-pointer uppercase text-xs tracking-wider transition-all duration-200 hover:text-text-cream hover:bg-[rgba(255,255,255,0.05)] [data-theme='light']:hover:bg-[rgba(0,0,0,0.05)] ${inputType === 'url' ? 'text-accent-rust border-b-2 border-accent-rust bg-accent-rust-glow' : ''}`}
               onClick={() => setInputType('url')}
             >
               YouTube URL
@@ -118,7 +118,7 @@ export default function ExpertVideoPanel({
 
           {inputType === 'file' && (
             <div
-              className={`upload-zone ${videoFile ? 'has-file' : ''}`}
+              className={`h-full min-h-[400px] flex items-center justify-center cursor-pointer transition-all duration-300 border border-dashed border-[rgba(255,255,255,0.1)] [data-theme='light']:bg-[rgba(0,0,0,0.05)] [data-theme='light']:border-border-accent hover:bg-[rgba(0,180,216,0.05)] hover:border-accent-rust`}
               onClick={() => !videoFile && fileInputRef.current?.click()}
             >
               <input
@@ -129,19 +129,19 @@ export default function ExpertVideoPanel({
                 hidden
               />
               {videoFile ? (
-                <div className="file-preview">
-                  <span className="file-icon">VIDEO_FILE</span>
+                <div className="text-center">
+                  <span className="text-accent-rust">VIDEO_FILE</span>
                   <p>{videoFile.name}</p>
                   {isAnalyzing && (
-                    <div className="loading-bar">
-                      <div className="bar-fill"></div>
+                    <div className="w-[200px] h-1 bg-[rgba(255,255,255,0.1)] mx-auto my-4 rounded overflow-hidden [data-theme='light']:bg-[rgba(0,0,0,0.1)]">
+                      <div className="h-full bg-accent-rust w-0 animate-[fillBar_3s_ease-out_forwards]" />
                     </div>
                   )}
                   {analysisComplete && (
-                    <div className="status-badge success">ANALYSIS COMPLETE</div>
+                    <div className="mt-2 px-3 py-1 text-xs text-success border border-success uppercase">ANALYSIS COMPLETE</div>
                   )}
                   <button
-                    className="btn-text"
+                    className="mt-2 bg-transparent border-none text-text-muted underline cursor-pointer text-xs hover:text-error"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleReset();
@@ -151,28 +151,28 @@ export default function ExpertVideoPanel({
                   </button>
                 </div>
               ) : (
-                <div className="upload-cta">
-                  <span className="upload-icon">↑</span>
+                <div className="text-center">
+                  <span className="text-5xl block mb-4 text-accent-rust">↑</span>
                   <p>Upload Surgical Procedure Video</p>
-                  <span className="sub-text">MP4, MOV supported</span>
+                  <span className="text-xs text-text-dim">MP4, MOV supported</span>
                 </div>
               )}
             </div>
           )}
 
           {inputType === 'url' && (
-            <div className="url-input-zone">
+            <div className="flex-1 flex items-center justify-center p-8 min-h-[350px]">
               {!youtubeUrl ? (
-                <div className="url-form">
+                <div className="w-full max-w-[400px] flex flex-col gap-4">
                   <input
                     type="text"
-                    className="input-text"
+                    className="w-full px-4 py-3 bg-[rgba(0,0,0,0.2)] border border-[rgba(255,255,255,0.1)] rounded text-text-cream text-base [data-theme='light']:bg-white [data-theme='light']:border-border-subtle"
                     placeholder="Paste YouTube URL here..."
                     value={inputUrl}
                     onChange={(e) => setInputUrl(e.target.value)}
                   />
                   <button
-                    className="btn btn-primary"
+                    className="px-6 py-3 font-display tracking-wider text-text-cream bg-accent-rust border-2 border-accent-rust transition-all duration-250 hover:bg-accent-rust-light hover:border-accent-rust-light disabled:opacity-50"
                     onClick={handleUrlSubmit}
                     disabled={!inputUrl}
                   >
@@ -180,25 +180,26 @@ export default function ExpertVideoPanel({
                   </button>
                 </div>
               ) : (
-                <div className="video-embed">
+                <div className="w-full h-full min-h-[400px] relative flex flex-col">
                   <iframe
                     width="100%"
                     height="100%"
+                    className="flex-1 rounded bg-black"
                     src={getEmbedUrl(youtubeUrl)}
                     frameBorder="0"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
                   ></iframe>
                   {isAnalyzing && (
-                    <div className="loading-bar">
-                      <div className="bar-fill"></div>
+                    <div className="w-[200px] h-1 bg-[rgba(255,255,255,0.1)] mx-auto my-4 rounded overflow-hidden [data-theme='light']:bg-[rgba(0,0,0,0.1)]">
+                      <div className="h-full bg-accent-rust w-0 animate-[fillBar_3s_ease-out_forwards]" />
                     </div>
                   )}
                   {analysisComplete && (
-                    <div className="status-badge success">ANALYSIS COMPLETE</div>
+                    <div className="mt-2 px-3 py-1 text-xs text-success border border-success uppercase text-center">ANALYSIS COMPLETE</div>
                   )}
                   <button
-                    className="btn-text"
+                    className="mt-2 bg-transparent border-none text-text-muted underline cursor-pointer text-xs hover:text-error self-center"
                     onClick={() => {
                       handleReset();
                     }}

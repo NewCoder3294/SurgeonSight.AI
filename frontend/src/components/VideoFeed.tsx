@@ -1,5 +1,4 @@
 import { useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
-import './VideoFeed.css';
 
 /**
  * VideoFeed component with hand detection overlay support
@@ -87,36 +86,39 @@ const VideoFeed = forwardRef(function VideoFeed({
     };
 
     return (
-        <div className="video-feed">
+        <div className="w-full aspect-video bg-bg-secondary relative overflow-hidden">
             <video
                 ref={videoRef}
                 autoPlay
                 playsInline
                 muted
-                className="video-element"
+                className="w-full h-full object-cover -scale-x-100"
             />
 
             {/* Canvas for hand landmark overlay */}
             <canvas
                 ref={canvasRef}
-                className="landmark-canvas"
+                className="absolute top-0 left-0 w-full h-full pointer-events-none -scale-x-100"
             />
 
             {/* Overlay effects */}
-            <div className="video-overlay">
+            <div className="absolute top-0 left-0 right-0 bottom-0 pointer-events-none">
                 {/* Corner targeting reticle */}
-                <div className="reticle reticle-tl" />
-                <div className="reticle reticle-tr" />
-                <div className="reticle reticle-bl" />
-                <div className="reticle reticle-br" />
+                <div className="absolute top-5 left-5 w-10 h-10 border-t border-l border-accent-rust opacity-60" />
+                <div className="absolute top-5 right-5 w-10 h-10 border-t border-r border-accent-rust opacity-60" />
+                <div className="absolute bottom-10 left-5 w-10 h-10 border-b border-l border-accent-rust opacity-60" />
+                <div className="absolute bottom-10 right-5 w-10 h-10 border-b border-r border-accent-rust opacity-60" />
+
+                {/* Scan line */}
+                <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-accent-rust-glow via-accent-rust via-accent-rust-glow to-transparent opacity-30 animate-scan-down" />
 
                 {/* Grid overlay */}
-                <div className="grid-lines" />
+                <div className="absolute top-0 left-0 right-0 bottom-0 bg-[linear-gradient(rgba(196,92,62,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(196,92,62,0.05)_1px,transparent_1px)] bg-[length:60px_60px]" />
 
                 {/* Detection box (legacy support) */}
                 {detectionBox && (
                     <div
-                        className="detection-box"
+                        className="absolute border-2 border-accent-rust bg-[rgba(196,92,62,0.1)] animate-pulse-box flex flex-col justify-end p-1"
                         style={{
                             left: `${detectionBox.x}%`,
                             top: `${detectionBox.y}%`,
@@ -124,18 +126,18 @@ const VideoFeed = forwardRef(function VideoFeed({
                             height: `${detectionBox.height}%`,
                         }}
                     >
-                        <span className="detection-label">HAND DETECTED</span>
-                        <span className="detection-confidence">CONF: 0.{Math.floor(75 + Math.random() * 20)}</span>
+                        <span className="font-mono text-[0.55rem] tracking-wider text-accent-rust bg-[rgba(10,10,10,0.8)] px-1 py-0.5 self-start [data-theme='light']:bg-[rgba(255,255,255,0.9)]">HAND DETECTED</span>
+                        <span className="font-mono text-[0.5rem] tracking-wider text-text-dim bg-[rgba(10,10,10,0.8)] px-1 py-0.5 self-start mt-0.5 [data-theme='light']:bg-[rgba(255,255,255,0.9)]">CONF: 0.{Math.floor(75 + Math.random() * 20)}</span>
                     </div>
                 )}
 
                 {/* Grip state indicator */}
                 {gripState && (
-                    <div className="grip-indicator" style={{ borderColor: getGripColor(gripState.state) }}>
-                        <span className="grip-label" style={{ color: getGripColor(gripState.state) }}>
+                    <div className="absolute top-5 right-5 p-2 bg-[rgba(10,15,26,0.9)] border-2 backdrop-blur-sm flex flex-col gap-0.5 [data-theme='light']:bg-[rgba(248,250,252,0.95)]" style={{ borderColor: getGripColor(gripState.state) }}>
+                        <span className="font-display text-base tracking-wider" style={{ color: getGripColor(gripState.state) }}>
                             {gripState.state.toUpperCase().replace('_', ' ')}
                         </span>
-                        <span className="grip-confidence">
+                        <span className="font-mono text-[0.5rem] tracking-wider text-text-dim">
                             CONF: {(gripState.confidence * 100).toFixed(0)}%
                         </span>
                     </div>
@@ -143,15 +145,15 @@ const VideoFeed = forwardRef(function VideoFeed({
             </div>
 
             {/* Status bar */}
-            <div className="video-status-bar">
-                <span className="status-item">
-                    <span className="status-dot recording" />
+            <div className="absolute bottom-0 left-0 right-0 flex gap-4 px-2 py-1 bg-[rgba(10,10,10,0.7)] backdrop-blur-sm [data-theme='light']:bg-[rgba(255,255,255,0.8)]">
+                <span className="font-mono text-xs tracking-wider text-text-dim uppercase flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-error animate-blink" />
                     REC
                 </span>
-                <span className="status-item">720p</span>
-                <span className="status-item">30FPS</span>
+                <span className="font-mono text-xs tracking-wider text-text-dim uppercase">720p</span>
+                <span className="font-mono text-xs tracking-wider text-text-dim uppercase">30FPS</span>
                 {hands.length > 0 && (
-                    <span className="status-item" style={{ color: 'var(--success)' }}>
+                    <span className="font-mono text-xs tracking-wider text-success uppercase">
                         {hands.length} HAND{hands.length > 1 ? 'S' : ''}
                     </span>
                 )}

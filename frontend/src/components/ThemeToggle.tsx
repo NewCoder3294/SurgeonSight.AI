@@ -1,20 +1,19 @@
 import { useTheme } from '../context/ThemeContext';
-import './ThemeToggle.css';
 
 export default function ThemeToggle() {
     const { theme, toggleTheme } = useTheme();
 
     return (
         <button
-            className="theme-toggle"
+            className="flex items-center gap-2 bg-bg-secondary border border-border-subtle px-4 py-2 cursor-pointer transition-all duration-250 font-mono text-xs tracking-wider text-text-muted hover:border-accent-rust hover:text-accent-rust"
             onClick={toggleTheme}
             aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
             title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
         >
-            <span className="theme-toggle-icon">
+            <span className="w-4 h-4 flex items-center justify-center">
                 {theme === 'dark' ? (
                     // Sun icon for switching to light
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-full h-full">
                         <circle cx="12" cy="12" r="5" />
                         <line x1="12" y1="1" x2="12" y2="3" />
                         <line x1="12" y1="21" x2="12" y2="23" />
@@ -27,12 +26,12 @@ export default function ThemeToggle() {
                     </svg>
                 ) : (
                     // Moon icon for switching to dark
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-full h-full">
                         <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
                     </svg>
                 )}
             </span>
-            <span className="theme-toggle-label">
+            <span className="uppercase">
                 {theme === 'dark' ? 'LIGHT' : 'DARK'}
             </span>
         </button>
