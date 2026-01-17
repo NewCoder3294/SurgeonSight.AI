@@ -9,30 +9,30 @@ export default function SessionSummary() {
     const location = useLocation();
 
     // Get data from navigation state or use defaults
-    const { duration = 180, events = [] } = location.state || {};
+    const { duration = 180, events = [] } = (location.state || {}) as any;
 
-    const corrections = events.filter(e => e.type === 'correction');
-    const encouragements = events.filter(e => e.type === 'encouragement');
+    const corrections = events.filter((e: any) => e.type === 'correction');
+    const encouragements = events.filter((e: any) => e.type === 'encouragement');
 
     // Calculate score (demo logic)
     const score = Math.min(100, Math.max(0,
         70 + (encouragements.length * 5) - (corrections.length * 3)
     ));
 
-    const formatTime = (seconds) => {
+    const formatTime = (seconds: any) => {
         const mins = Math.floor(seconds / 60);
         const secs = seconds % 60;
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     };
 
-    const getScoreLabel = (score) => {
+    const getScoreLabel = (score: any) => {
         if (score >= 90) return 'EXCELLENT';
         if (score >= 75) return 'GOOD';
         if (score >= 60) return 'FAIR';
         return 'NEEDS WORK';
     };
 
-    const getScoreClass = (score) => {
+    const getScoreClass = (score: any) => {
         if (score >= 90) return 'excellent';
         if (score >= 75) return 'good';
         if (score >= 60) return 'fair';
@@ -128,7 +128,7 @@ export default function SessionSummary() {
                             <span className="event-message">Session started</span>
                         </div>
 
-                        {events.map((event, index) => (
+                        {events.map((event: any, index: any) => (
                             <div key={event.id || index} className={`timeline-event ${event.type}`}>
                                 <span className="event-time">{formatTime(event.timestamp)}</span>
                                 <div className="event-marker" />

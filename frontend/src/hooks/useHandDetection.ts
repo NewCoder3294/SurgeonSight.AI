@@ -5,7 +5,7 @@ import { classifyGrip, shouldTriggerFeedback } from '../utils/gripClassifier';
  * Custom hook for MediaPipe hand detection
  * Handles loading, processing, and grip classification
  */
-export function useHandDetection(videoRef, options = {}) {
+export function useHandDetection(videoRef: any, options: any = {}) {
     const {
         enabled = true,
         onGripChange = () => { },
@@ -17,15 +17,15 @@ export function useHandDetection(videoRef, options = {}) {
 
     const [isLoading, setIsLoading] = useState(true);
     const [isReady, setIsReady] = useState(false);
-    const [error, setError] = useState(null);
+    const [error, setError] = useState<string | null>(null);
     const [currentGrip, setCurrentGrip] = useState({ state: 'no_hand', confidence: 0 });
     const [hands, setHands] = useState([]);
 
-    const handsRef = useRef(null);
-    const cameraRef = useRef(null);
+    const handsRef = useRef<any>(null);
+    const cameraRef = useRef<any>(null);
     const lastGripRef = useRef('no_hand');
     const lastFeedbackTimeRef = useRef(0);
-    const animationFrameRef = useRef(null);
+    const animationFrameRef = useRef<any>(null);
 
     // Initialize MediaPipe Hands
     useEffect(() => {
@@ -42,7 +42,7 @@ export function useHandDetection(videoRef, options = {}) {
 
                 // Create Hands instance
                 const hands = new Hands({
-                    locateFile: (file) =>
+                    locateFile: (file: string) =>
                         `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
                 });
 
@@ -76,7 +76,7 @@ export function useHandDetection(videoRef, options = {}) {
                 setIsLoading(false);
                 console.log('✅ MediaPipe Hands initialized');
 
-            } catch (err) {
+            } catch (err: any) {
                 console.error('Failed to initialize MediaPipe:', err);
                 setError(err.message);
                 setIsLoading(false);
@@ -98,7 +98,7 @@ export function useHandDetection(videoRef, options = {}) {
     }, [enabled, videoRef, maxHands, minDetectionConfidence, minTrackingConfidence]);
 
     // Handle MediaPipe results
-    const handleResults = useCallback((results) => {
+    const handleResults = useCallback((results: any) => {
         if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
             setHands([]);
             const newGrip = { state: 'no_hand', confidence: 0, details: {} };
@@ -108,13 +108,13 @@ export function useHandDetection(videoRef, options = {}) {
         }
 
         // Process detected hands
-        const detectedHands = results.multiHandLandmarks.map((landmarks, index) => ({
+        const detectedHands = results.multiHandLandmarks.map((landmarks: any, index: any) => ({
             landmarks,
             handedness: results.multiHandedness?.[index]?.label || 'Unknown',
             score: results.multiHandedness?.[index]?.score || 0
         }));
 
-        setHands(detectedHands);
+        setHands(detectedHands as any);
         onHandsDetected(detectedHands);
 
         // Classify grip on first (dominant) hand
@@ -157,7 +157,7 @@ export function useHandDetection(videoRef, options = {}) {
  * Simplified hook for demos - uses mock detection
  * Falls back to this if MediaPipe fails to load
  */
-export function useMockHandDetection(options = {}) {
+export function useMockHandDetection(options: any = {}) {
     const { onGripChange = () => { } } = options;
     const [currentGrip, setCurrentGrip] = useState({ state: 'correct', confidence: 0.8 });
 

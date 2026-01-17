@@ -5,7 +5,7 @@ export default function MetadataDisplay({
     value,
     position = 'static',
     className = ''
-}) {
+}: any) {
     return (
         <div className={`metadata-display ${position} ${className}`}>
             <span className="metadata-label">{label}</span>
@@ -14,10 +14,10 @@ export default function MetadataDisplay({
     );
 }
 
-export function FloatingMetadata({ items = [], position = 'top-right' }) {
+export function FloatingMetadata({ items = [], position = 'top-right' }: any) {
     return (
         <div className={`floating-metadata ${position}`}>
-            {items.map((item, index) => (
+            {items.map((item: any, index: any) => (
                 <div key={index} className="floating-metadata-item">
                     <span className="metadata-label">{item.label}</span>
                     <span className="metadata-value">{item.value}</span>

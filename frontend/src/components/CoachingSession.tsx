@@ -32,24 +32,24 @@ export default function CoachingSession() {
     const [sessionId, setSessionId] = useState(null);
     const [sessionTime, setSessionTime] = useState(0);
     const [isAnalyzing, setIsAnalyzing] = useState(true);
-    const [currentFeedback, setCurrentFeedback] = useState(null);
-    const [feedbackHistory, setFeedbackHistory] = useState([]);
-    const [detectionBox, setDetectionBox] = useState(null);
-    const [hands, setHands] = useState([]);
-    const [currentGrip, setCurrentGrip] = useState(null);
+    const [currentFeedback, setCurrentFeedback] = useState<any>(null);
+    const [feedbackHistory, setFeedbackHistory] = useState<any[]>([]);
+    const [detectionBox, setDetectionBox] = useState<any>(null);
+    const [hands] = useState<any[]>([]); // eslint-disable-line @typescript-eslint/no-unused-vars
+    const [currentGrip] = useState<any>(null); // eslint-disable-line @typescript-eslint/no-unused-vars
     const [backendConnected, setBackendConnected] = useState(false);
 
     // Demo mode state
     const [feedbackIndex, setFeedbackIndex] = useState(0);
 
-    const timerRef = useRef(null);
-    const feedbackTimeoutRef = useRef(null);
+    const timerRef = useRef<any>(null);
+    const feedbackTimeoutRef = useRef<any>(null);
 
     // Voice feedback hook
     const { playFeedback, speakWithWebSpeech, isSpeaking } = useVoiceFeedback();
 
     // Handle incoming feedback from backend
-    const handleBackendFeedback = useCallback((data) => {
+    const handleBackendFeedback = useCallback((data: any) => {
         const feedback = {
             type: data.category,
             message: data.message,
@@ -81,7 +81,7 @@ export default function CoachingSession() {
 
     // Mock hand detection (used when MediaPipe not available)
     const { currentGrip: mockGrip } = useMockHandDetection({
-        onGripChange: (grip) => {
+        onGripChange: (grip: any) => {
             if (!backendConnected) {
                 // Use demo mode feedback
                 triggerDemoFeedback();
@@ -122,7 +122,7 @@ export default function CoachingSession() {
     }, [isConnected]);
 
     // Format time as MM:SS
-    const formatTime = (seconds) => {
+    const formatTime = (seconds: any) => {
         const mins = Math.floor(seconds / 60);
         const secs = seconds % 60;
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
@@ -305,7 +305,7 @@ export default function CoachingSession() {
                         <div className="history-section">
                             <h3 className="section-title">Recent</h3>
                             <div className="history-list">
-                                {feedbackHistory.slice(-5).reverse().map((item, index) => (
+                                {feedbackHistory.slice(-5).reverse().map((item: any) => (
                                     <div key={item.id} className={`history-item ${item.type}`}>
                                         <span className="history-time">{formatTime(item.timestamp)}</span>
                                         <span className="history-message">{item.message}</span>

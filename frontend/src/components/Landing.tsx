@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import CornerBrackets from './CornerBrackets';
 import { FloatingMetadata } from './MetadataDisplay';
 import ThemeToggle from './ThemeToggle';
-import SponsorLogos from './SponsorLogos';
+
 import './Landing.css';
 
 export default function Landing() {

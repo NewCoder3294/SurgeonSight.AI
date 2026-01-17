@@ -39,7 +39,7 @@ export async function startSession(userId = 'demo-user') {
  * @param {string} sessionId - Session ID
  * @returns {Promise<Object>} - Session summary
  */
-export async function endSession(sessionId) {
+export async function endSession(sessionId: any) {
     try {
         const response = await fetch(`${API_BASE}/api/session/end`, {
             method: 'POST',
@@ -73,7 +73,7 @@ export async function endSession(sessionId) {
  * @param {string} sessionId - Session ID
  * @returns {Promise<Object>} - Session status
  */
-export async function getSessionStatus(sessionId) {
+export async function getSessionStatus(sessionId: any) {
     try {
         const response = await fetch(`${API_BASE}/api/session/${sessionId}`);
 

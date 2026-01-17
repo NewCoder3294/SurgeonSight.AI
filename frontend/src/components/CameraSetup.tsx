@@ -7,10 +7,10 @@ import './CameraSetup.css';
 
 export default function CameraSetup() {
     const navigate = useNavigate();
-    const videoRef = useRef(null);
+    const videoRef = useRef<any>(null);
     const [hasPermission, setHasPermission] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const [error, setError] = useState<string | null>(null);
     const [checklist, setChecklist] = useState({
         lighting: false,
         hands: false,
@@ -22,7 +22,7 @@ export default function CameraSetup() {
         return () => {
             // Cleanup camera on unmount
             if (videoRef.current?.srcObject) {
-                videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+                videoRef.current.srcObject.getTracks().forEach((track: any) => track.stop());
             }
         };
     }, []);
@@ -166,7 +166,7 @@ export default function CameraSetup() {
     );
 }
 
-function ChecklistItem({ checked, label, description }) {
+function ChecklistItem({ checked, label, description }: any) {
     return (
         <div className={`checklist-item ${checked ? 'checked' : ''}`}>
             <div className="checkbox">

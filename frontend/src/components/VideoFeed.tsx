@@ -11,9 +11,9 @@ const VideoFeed = forwardRef(function VideoFeed({
     gripState = null,
     showLandmarks = true,
     showSkeleton = true
-}, ref) {
-    const videoRef = useRef(null);
-    const canvasRef = useRef(null);
+}: any, ref: any) {
+    const videoRef = useRef<any>(null);
+    const canvasRef = useRef<any>(null);
 
     // Expose video ref to parent
     useImperativeHandle(ref, () => ({
@@ -25,7 +25,7 @@ const VideoFeed = forwardRef(function VideoFeed({
         initCamera();
         return () => {
             if (videoRef.current?.srcObject) {
-                videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+                videoRef.current.srcObject.getTracks().forEach((track: any) => track.stop());
             }
         };
     }, []);
@@ -47,7 +47,7 @@ const VideoFeed = forwardRef(function VideoFeed({
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         // Draw each hand
-        hands.forEach(hand => {
+        hands.forEach((hand: any) => {
             if (showSkeleton) {
                 drawHandSkeleton(ctx, hand.landmarks, canvas.width, canvas.height);
             }
@@ -77,7 +77,7 @@ const VideoFeed = forwardRef(function VideoFeed({
     };
 
     // Get grip state color
-    const getGripColor = (state) => {
+    const getGripColor = (state: any) => {
         switch (state) {
             case 'correct': return 'var(--success)';
             case 'palmed': case 'angled': case 'tremor': return 'var(--error)';
@@ -174,7 +174,7 @@ const HAND_CONNECTIONS = [
 ];
 
 // Draw hand skeleton lines
-function drawHandSkeleton(ctx, landmarks, width, height) {
+function drawHandSkeleton(ctx: any, landmarks: any, width: any, height: any) {
     ctx.strokeStyle = 'rgba(0, 180, 216, 0.6)';
     ctx.lineWidth = 2;
 
@@ -190,8 +190,8 @@ function drawHandSkeleton(ctx, landmarks, width, height) {
 }
 
 // Draw hand landmark points
-function drawHandLandmarks(ctx, landmarks, width, height) {
-    landmarks.forEach((point, index) => {
+function drawHandLandmarks(ctx: any, landmarks: any, width: any, height: any) {
+    landmarks.forEach((point: any, index: any) => {
         const x = point.x * width;
         const y = point.y * height;
 

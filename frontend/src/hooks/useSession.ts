@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
  * Custom hook for WebSocket connection to backend
  * Handles real-time communication for grip state and feedback
  */
-export function useWebSocket(sessionId, options = {}) {
+export function useWebSocket(sessionId: any, options: any = {}) {
     const {
         url = 'ws://localhost:3001/ws',
         onFeedback = () => { },
@@ -12,9 +12,9 @@ export function useWebSocket(sessionId, options = {}) {
     } = options;
 
     const [isConnected, setIsConnected] = useState(false);
-    const [error, setError] = useState(null);
-    const wsRef = useRef(null);
-    const reconnectTimeoutRef = useRef(null);
+    const [error, setError] = useState<string | null>(null);
+    const wsRef = useRef<any>(null);
+    const reconnectTimeoutRef = useRef<any>(null);
 
     // Connect to WebSocket
     const connect = useCallback(() => {
@@ -66,13 +66,13 @@ export function useWebSocket(sessionId, options = {}) {
                 }
             };
 
-            ws.onerror = (err) => {
+            ws.onerror = (err: any) => {
                 console.error('WebSocket error:', err);
                 setError('Connection failed');
             };
 
             wsRef.current = ws;
-        } catch (err) {
+        } catch (err: any) {
             setError(err.message);
         }
     }, [url, sessionId, onFeedback, autoReconnect]);
@@ -90,7 +90,7 @@ export function useWebSocket(sessionId, options = {}) {
     }, []);
 
     // Send grip state to backend
-    const sendGripState = useCallback((gripState, landmarks) => {
+    const sendGripState = useCallback((gripState: any, landmarks: any) => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({
                 type: 'grip_state',
@@ -141,7 +141,7 @@ export function useVoiceFeedback() {
     const synthRef = useRef(window.speechSynthesis);
 
     // Play feedback audio
-    const playFeedback = useCallback(async (feedbackData) => {
+    const playFeedback = useCallback(async (feedbackData: any) => {
         setIsSpeaking(true);
 
         try {
@@ -168,7 +168,7 @@ export function useVoiceFeedback() {
     }, []);
 
     // Web Speech API fallback
-    const speakWithWebSpeech = useCallback((text) => {
+    const speakWithWebSpeech = useCallback((text: any) => {
         if (!synthRef.current) {
             setIsSpeaking(false);
             return;
@@ -216,9 +216,9 @@ export function useVoiceFeedback() {
 }
 
 // Helper function to convert base64 to Blob
-function base64ToBlob(base64, mimeType) {
+function base64ToBlob(base64: any, mimeType: any) {
     const byteCharacters = atob(base64);
-    const byteArrays = [];
+    const byteArrays: any[] = [];
 
     for (let offset = 0; offset < byteCharacters.length; offset += 512) {
         const slice = byteCharacters.slice(offset, offset + 512);

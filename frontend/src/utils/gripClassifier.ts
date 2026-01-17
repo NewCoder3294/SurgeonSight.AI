@@ -6,7 +6,7 @@
 /**
  * Calculate distance between two 3D points
  */
-function distance(p1, p2) {
+function distance(p1: any, p2: any) {
     return Math.sqrt(
         Math.pow(p1.x - p2.x, 2) +
         Math.pow(p1.y - p2.y, 2) +
@@ -17,7 +17,7 @@ function distance(p1, p2) {
 /**
  * Calculate angle between three points (in degrees)
  */
-function calculateAngle(p1, p2, p3) {
+function calculateAngle(p1: any, p2: any, p3: any) {
     const v1 = { x: p1.x - p2.x, y: p1.y - p2.y, z: p1.z - p2.z };
     const v2 = { x: p3.x - p2.x, y: p3.y - p2.y, z: p3.z - p2.z };
 
@@ -46,7 +46,7 @@ function calculateAngle(p1, p2, p3) {
  * @param {Array} landmarks - 21 hand landmarks from MediaPipe
  * @returns {Object} - { state: string, confidence: number, details: object }
  */
-export function classifyGrip(landmarks) {
+export function classifyGrip(landmarks: any) {
     if (!landmarks || landmarks.length < 21) {
         return { state: 'no_hand', confidence: 0, details: {} };
     }
@@ -54,9 +54,7 @@ export function classifyGrip(landmarks) {
     // Key landmarks
     const wrist = landmarks[0];
     const thumbTip = landmarks[4];
-    const thumbIP = landmarks[3];
     const indexTip = landmarks[8];
-    const indexPIP = landmarks[6];
     const indexMCP = landmarks[5];
     const middleTip = landmarks[12];
     const middleMCP = landmarks[9];
@@ -66,7 +64,7 @@ export function classifyGrip(landmarks) {
 
     // Calculate key metrics
     const pinchDistance = distance(thumbTip, indexTip);
-    const thumbIndexAngle = calculateAngle(thumbTip, indexMCP, indexTip);
+
     const fingerSpread = distance(indexTip, pinkyTip);
     const palmWidth = distance(indexMCP, pinkyMCP);
     const wristAngle = calculateAngle(wrist, indexMCP, pinkyMCP);
@@ -120,7 +118,7 @@ export function classifyGrip(landmarks) {
 /**
  * Get human-readable description of grip state
  */
-export function getGripDescription(state) {
+export function getGripDescription(state: any) {
     const descriptions = {
         correct: 'Correct pencil grip',
         palmed: 'Palming the instrument',
@@ -130,13 +128,13 @@ export function getGripDescription(state) {
         other_error: 'Grip needs adjustment',
         no_hand: 'No hand detected'
     };
-    return descriptions[state] || 'Unknown state';
+    return (descriptions as any)[state] || 'Unknown state';
 }
 
 /**
  * Determine if state change warrants feedback
  */
-export function shouldTriggerFeedback(prevState, newState, timeSinceLastFeedback) {
+export function shouldTriggerFeedback(prevState: any, newState: any, timeSinceLastFeedback: any) {
     // No feedback if no change
     if (prevState === newState) return false;
 
