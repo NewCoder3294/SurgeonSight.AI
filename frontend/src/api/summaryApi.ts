@@ -21,31 +21,26 @@ interface ExpertSummaryResponse {
   summary: string;
 }
 
-const API_BASE = 'http://localhost:8000';
-
 export async function fetchExpertSummary(
   payload: ExpertSummaryPayload
 ): Promise<string> {
-  try {
-    const response = await fetch(`${API_BASE}/expert/summary`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        ...payload,
-        style: payload.style || 'concise',
-      }),
-    });
+  const response = await fetch('http://localhost:8000/expert/summary', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      procedure: payload.procedure,
+      stats: payload.stats,
+      segments: payload.segments || [],
+      style: 'concise',
+    }),
+  });
 
-    if (!response.ok) {
-      const status = response.status;
-      throw new Error(`Request failed with status ${status}`);
-    }
-
-    const data: ExpertSummaryResponse = await response.json();
-    return data.summary;
-  } catch (error) {
-    throw error;
+  if (!response.ok) {
+    throw new Error(`Request failed with status ${response.status}`);
   }
+
+  const data: ExpertSummaryResponse = await response.json();
+  return data.summary;
 }
