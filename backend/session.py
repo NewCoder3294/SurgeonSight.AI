@@ -13,15 +13,15 @@ router = APIRouter()
 async def create_session(session: SessionCreate):
     """Append a session report."""
     session_id = uuid4().hex
-    session_data = {
-        "session_id": session_id,
-        "created_at": datetime.utcnow().isoformat(),
-        "metrics": session.metrics or [],
-        "events": session.events or [],
-        "score": session.score,
-    }
-    SESSIONS[session_id] = session_data
-    return SessionResponse(**session_data)
+    session_data = SessionResponse(
+        session_id=session_id,
+        created_at=datetime.utcnow().isoformat(),
+        metrics=session.metrics,
+        events=session.events or [],
+        score=session.score,
+    )
+    SESSIONS[session_id] = session_data.model_dump()
+    return session_data
 
 
 @router.get("/session/{session_id}", response_model=SessionResponse)

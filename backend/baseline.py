@@ -9,12 +9,13 @@ router = APIRouter()
 @router.post("/baseline", response_model=BaselineResponse, status_code=200)
 async def save_baseline(baseline: BaselineCreate):
     """Save or overwrite baseline."""
-    BASELINE["default"] = {
-        "baseline_id": "default",
-        "metrics": baseline.metrics,
-        "meta": baseline.meta or {},
-    }
-    return BaselineResponse(**BASELINE["default"])
+    baseline_data = BaselineResponse(
+        baseline_id=baseline.baseline_id,
+        metrics=baseline.metrics,
+        meta=baseline.meta,
+    )
+    BASELINE["default"] = baseline_data.model_dump()
+    return baseline_data
 
 
 @router.get("/baseline", response_model=BaselineResponse)
