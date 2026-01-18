@@ -13,16 +13,19 @@ interface ExpertVideoPanelProps {
   onError?: (error: string) => void;
 }
 
-const ANALYSIS_PROMPT = `You are an expert surgical instructor watching a training video. 
-As you observe, provide concise observations about:
-- Instrument handling technique
-- Hand positioning and grip
-- Incision angles and approach
-- Procedural steps being demonstrated
-- Any notable techniques or best practices
+const ANALYSIS_PROMPT = `Expert surgical instructor analysis.
+Provide extremely concise 1-sentence observations in markdown bullet point format.
+Focus ONLY on:
+- Technique & handling
+- Grip & positioning
+- Improvement opportunities
 
-Keep each observation to 1-2 sentences. Focus on actionable teaching points.
-Avoid repeating the same observation multiple times.`;
+Example format:
+- **Technique**: Smooth scalpel entry angle (45°).
+- **Grip**: Needs more stability in non-dominant hand.
+- **Note**: Excellent suturing rhythm.
+
+Keep it brief. Avoid repetition. Use bolding for categories.`;
 
 export default function ExpertVideoPanel({
   isAnalyzing,
@@ -142,7 +145,7 @@ export default function ExpertVideoPanel({
           completeAnalysis();
         };
         videoEl.addEventListener('ended', handleEnded);
-        
+
         // Store cleanup function
         videoEndedCleanupRef.current = () => {
           videoEl.removeEventListener('ended', handleEnded);
@@ -184,7 +187,7 @@ export default function ExpertVideoPanel({
     // Process accumulated notes
     const { extractSummary, extractKeyConcepts, extractNotableMoments } = await import('../utils/noteProcessing');
     const dedupedNotes = deduplicateNotes(notesAccumulatorRef.current);
-    
+
     // Send final deduplicated notes (ensure parent has latest state)
     onNotesUpdate(dedupedNotes);
 
@@ -215,7 +218,7 @@ export default function ExpertVideoPanel({
       videoEndedCleanupRef.current = null;
     }
     if (visionInstanceRef.current) {
-      visionInstanceRef.current.stop().catch(() => {});
+      visionInstanceRef.current.stop().catch(() => { });
       visionInstanceRef.current = null;
     }
     if (videoUrl) {

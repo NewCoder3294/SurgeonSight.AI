@@ -63,7 +63,7 @@ export default function TrainingSession() {
             </CornerBrackets>
           </div>
 
-          <div className="grid grid-cols-2 grid-rows-[auto_auto] gap-6 mt-6">
+          <div className="grid grid-cols-2 gap-6 mt-6">
             {/* Left: Video Panel */}
             <ExpertVideoPanel
               isAnalyzing={isAnalyzing}
@@ -75,13 +75,27 @@ export default function TrainingSession() {
               onError={setAnalysisError}
             />
 
-            {/* Right: Summary Panel */}
+            {/* Right: AI Observation Log (streaming notes only) */}
             <ExpertSummaryPanel
               isAnalyzing={isAnalyzing}
               analysisComplete={analysisComplete}
               streamingNotes={streamingNotes}
               analysisResult={analysisResult}
               error={analysisError}
+              showSummarySection={false}
+            />
+          </div>
+
+          {/* Full-width Summary Section Below - always visible */}
+          <div className="mt-6">
+            <ExpertSummaryPanel
+              isAnalyzing={isAnalyzing}
+              analysisComplete={analysisComplete}
+              streamingNotes={streamingNotes}
+              analysisResult={analysisResult}
+              error={null}
+              showSummarySection={true}
+              summaryOnly={true}
             />
           </div>
         </section>
