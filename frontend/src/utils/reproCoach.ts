@@ -46,12 +46,13 @@ export async function generateCoachSummary(metrics: MetricsSummary): Promise<Coa
   await new Promise(resolve => setTimeout(resolve, 300));
 
   // Generate mock coaching based on metrics
-  const { motion_mean, motion_max, jitter, status_counts } = metrics;
-  
+  // Note: motion_mean, motion_max, jitter will be used with Gemini API later
+  const { status_counts } = metrics;
+
   const onTrackPct = status_counts.on_track / (status_counts.on_track + status_counts.warning + status_counts.critical) * 100;
-  
+
   let text = '';
-  
+
   if (onTrackPct > 60) {
     text = 'Your motion control has been consistently good over the past interval. Movement patterns show stable execution with minimal jitter. Continue maintaining this steady approach to build muscle memory.';
   } else if (onTrackPct > 30) {

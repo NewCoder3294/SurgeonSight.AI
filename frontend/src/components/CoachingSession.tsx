@@ -4,12 +4,15 @@ import CornerBrackets from './CornerBrackets';
 import FeedbackDisplay from './FeedbackDisplay';
 import VideoFeed from './VideoFeed';
 import ThemeToggle from './ThemeToggle';
+import Hand3DVisualization from './Hand3DVisualization';
 import { useWebSocket, useVoiceFeedback } from '../hooks/useSession';
 import { useMockHandDetection } from '../hooks/useHandDetection';
+import { useLiveKitVoice } from '../hooks/useLiveKitVoice';
 import { startSession, endSession } from '../utils/api';
-import { createMetricsWindow, addMetric, computeSummary, computeFrameDifference } from '../utils/reproMetrics';
+import { createMetricsWindow, addMetric, computeFrameDifference } from '../utils/reproMetrics';
 import type { MotionMetrics } from '../utils/reproMetrics';
 import { FeedbackGenerator } from '../utils/reproFeedback';
+import { useMediaPipeHands, type HandData, type SurgicalMetrics } from '../hooks/useMediaPipeHands';
 
 // Demo feedback messages (fallback when backend not available)
 const DEMO_FEEDBACK = [
@@ -36,16 +39,17 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
     const [currentFeedback, setCurrentFeedback] = useState<any>(null);
     const [feedbackHistory, setFeedbackHistory] = useState<any[]>([]);
     const [detectionBox, setDetectionBox] = useState<any>(null);
-    const [hands] = useState<any[]>([]); // eslint-disable-line @typescript-eslint/no-unused-vars
-    const [currentGrip] = useState<any>(null); // eslint-disable-line @typescript-eslint/no-unused-vars
     const [backendConnected, setBackendConnected] = useState(false);
+    const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
+    const [currentMetrics, setCurrentMetrics] = useState<SurgicalMetrics | null>(null);
+    const [detectedHands, setDetectedHands] = useState<HandData[]>([]);
 
     // Demo mode state
     const [feedbackIndex, setFeedbackIndex] = useState(0);
 
     const timerRef = useRef<any>(null);
     const feedbackTimeoutRef = useRef<any>(null);
-    
+
     // Motion metrics state
     const metricsWindowRef = useRef(createMetricsWindow(5, 30));
     const feedbackGeneratorRef = useRef(new FeedbackGenerator());
@@ -54,8 +58,18 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
     const frameIntervalRef = useRef<any>(null);
     const lastFrameTimeRef = useRef<number>(0);
 
-    // Voice feedback hook
+    // Voice feedback hook (legacy)
     const { playFeedback, speakWithWebSpeech, isSpeaking } = useVoiceFeedback();
+
+    // LiveKit voice feedback with metrics narration
+    const {
+        speakMetrics,
+        voiceEnabled,
+        toggleVoice,
+        isSpeaking: isVoiceSpeaking
+    } = useLiveKitVoice({
+        speakInterval: 5000 // Speak metrics every 5 seconds
+    });
 
     // Handle incoming feedback from backend
     const handleBackendFeedback = useCallback((data: any) => {
@@ -96,17 +110,44 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
         onFeedback: handleBackendFeedback
     });
 
-    // Mock hand detection (used when MediaPipe not available)
+    // Real MediaPipe hand detection
+    const { isLoading: mediaPipeLoading } = useMediaPipeHands({
+        videoElement,
+        enabled: true,
+        targetFps: 15,
+        onHandsDetected: (hands) => {
+            setDetectedHands(hands);
+            if (hands.length > 0) {
+                setCurrentMetrics(hands[0].metrics);
+                setIsAnalyzing(false);
+                setTimeout(() => setIsAnalyzing(true), 200);
+
+                // Speak metrics if voice is enabled
+                if (voiceEnabled) {
+                    speakMetrics(hands[0].metrics);
+                }
+            }
+        }
+    });
+
+    // Mock hand detection (fallback when MediaPipe not available)
     const { currentGrip: mockGrip } = useMockHandDetection({
         onGripChange: (grip: any) => {
-            if (!backendConnected) {
-                // Use demo mode feedback
+            if (!backendConnected && detectedHands.length === 0) {
                 triggerDemoFeedback();
             } else {
                 sendGripState(grip, null);
             }
         }
     });
+
+    // Get video element reference when component mounts
+    useEffect(() => {
+        if (videoFeedRef.current) {
+            const videoEl = (videoFeedRef.current as any)?.getVideoElement?.();
+            if (videoEl) setVideoElement(videoEl);
+        }
+    }, [videoFeedRef.current]);
 
     // Initialize session
     useEffect(() => {
@@ -151,7 +192,7 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
 
         const demoFeedback = DEMO_FEEDBACK[feedbackIndex];
         // Map demo type to status
-        const status: 'ON_TRACK' | 'WARNING' | 'CRITICAL' = 
+        const status: 'ON_TRACK' | 'WARNING' | 'CRITICAL' =
             demoFeedback.type === 'correction' ? 'WARNING' : 'ON_TRACK';
 
         const feedback = {
@@ -243,8 +284,8 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
 
                 // Compute FPS (simple counter-based)
                 const now = Date.now();
-                const fps = frameCount > 0 && lastFrameTimeRef.current > 0 
-                    ? 1000 / (now - lastFrameTimeRef.current) 
+                const fps = frameCount > 0 && lastFrameTimeRef.current > 0
+                    ? 1000 / (now - lastFrameTimeRef.current)
                     : targetFps;
                 lastFrameTimeRef.current = now;
                 frameCount++;
@@ -366,24 +407,86 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
             {/* Main content */}
             <main className="flex-1 flex flex-col gap-6 max-[1000px]:gap-4">
                 <div className="grid grid-cols-[1fr_1fr] gap-6 w-full mx-auto max-[1000px]:grid-cols-1">
-                    {/* Left: Video feed (moderate size, not dominant) */}
+                    {/* Left: Video feed with hand tracking overlay */}
                     <div className="relative flex flex-col bg-black/20 rounded-lg overflow-hidden border border-white/5">
                         <CornerBrackets size="xl" animated>
                             <VideoFeed
                                 ref={videoFeedRef}
                                 detectionBox={detectionBox}
-                                hands={hands}
-                                gripState={currentGrip || mockGrip}
+                                hands={detectedHands}
+                                gripState={mockGrip}
+                                showMetrics={true}
+                                metrics={currentMetrics}
                             />
                         </CornerBrackets>
+                        {mediaPipeLoading && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                                <span className="font-mono text-sm text-accent-rust animate-pulse">Loading MediaPipe...</span>
+                            </div>
+                        )}
                     </div>
 
-                    {/* Right: Single Live Feedback Panel */}
-                    <div className="flex flex-col">
-                        <div className="bg-bg-secondary border border-border-subtle p-4 flex-1 flex flex-col min-h-[200px]">
+                    {/* Right: Metrics Panel + Live Feedback */}
+                    <div className="flex flex-col gap-4">
+                        {/* Real-time Metrics */}
+                        <div className="bg-bg-secondary border border-border-subtle p-4">
+                            <h3 className="text-xs tracking-widest mb-3 pb-1 border-b border-border-subtle text-text-muted uppercase">Surgical Metrics</h3>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="bg-bg-tertiary p-3 border border-border-subtle">
+                                    <span className="font-mono text-[0.6rem] text-text-dim uppercase block mb-1">Angle</span>
+                                    <span className="font-mono text-2xl text-accent-rust">
+                                        {currentMetrics ? `${currentMetrics.scalpelAngle.toFixed(1)}°` : '--'}
+                                    </span>
+                                </div>
+                                <div className="bg-bg-tertiary p-3 border border-border-subtle">
+                                    <span className="font-mono text-[0.6rem] text-text-dim uppercase block mb-1">Steadiness</span>
+                                    <span className={`font-mono text-2xl ${currentMetrics && currentMetrics.steadiness > 70 ? 'text-success' : 'text-warning'}`}>
+                                        {currentMetrics ? `${currentMetrics.steadiness.toFixed(0)}%` : '--'}
+                                    </span>
+                                </div>
+                                <div className="bg-bg-tertiary p-3 border border-border-subtle">
+                                    <span className="font-mono text-[0.6rem] text-text-dim uppercase block mb-1">Grip Type</span>
+                                    <span className={`font-mono text-lg uppercase ${currentMetrics?.gripType === 'pencil' ? 'text-success' : currentMetrics?.gripType === 'power' ? 'text-warning' : 'text-text-dim'}`}>
+                                        {currentMetrics?.gripType || '--'}
+                                    </span>
+                                </div>
+                                <div className="bg-bg-tertiary p-3 border border-border-subtle">
+                                    <span className="font-mono text-[0.6rem] text-text-dim uppercase block mb-1">Speed</span>
+                                    <span className="font-mono text-2xl text-text-cream">
+                                        {currentMetrics ? currentMetrics.speed.toFixed(1) : '--'}
+                                    </span>
+                                </div>
+                            </div>
+                            <div className="mt-3 text-center">
+                                <span className={`font-mono text-xs ${detectedHands.length > 0 ? 'text-success' : 'text-text-dim'}`}>
+                                    {detectedHands.length > 0 ? `✓ ${detectedHands.length} hand(s) detected` : '○ Waiting for hand...'}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* 3D Hand Visualization */}
+                        <div className="bg-bg-secondary border border-border-subtle p-4">
+                            <div className="flex justify-between items-center mb-3 pb-1 border-b border-border-subtle">
+                                <h3 className="text-xs tracking-widest text-text-muted uppercase">3D Hand View</h3>
+                                <button
+                                    onClick={toggleVoice}
+                                    className={`px-2 py-1 font-mono text-[0.6rem] tracking-wider uppercase border transition-all ${voiceEnabled ? 'bg-success/20 border-success text-success' : 'bg-bg-tertiary border-border-subtle text-text-dim'}`}
+                                >
+                                    {voiceEnabled ? '🔊 Voice ON' : '🔇 Voice OFF'}
+                                </button>
+                            </div>
+                            <Hand3DVisualization
+                                metrics={currentMetrics}
+                                landmarks={detectedHands[0]?.landmarks}
+                                handedness={detectedHands[0]?.handedness}
+                            />
+                        </div>
+
+                        {/* Live Feedback */}
+                        <div className="bg-bg-secondary border border-border-subtle p-4 flex-1 flex flex-col min-h-[120px]">
                             <h3 className="text-xs tracking-widest mb-3 pb-1 border-b border-border-subtle text-text-muted uppercase">Live Feedback</h3>
                             <FeedbackDisplay feedback={currentFeedback} />
-                            {isSpeaking && (
+                            {(isSpeaking || isVoiceSpeaking) && (
                                 <div className="flex items-center gap-2 mt-3 px-2 py-1 bg-bg-tertiary font-mono text-xs tracking-wider text-accent-rust">
                                     <span className="w-1.5 h-1.5 rounded-full bg-accent-rust animate-pulse" />
                                     Speaking...

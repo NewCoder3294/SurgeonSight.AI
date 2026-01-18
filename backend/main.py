@@ -24,3 +24,53 @@ app.include_router(summary_router)
 @app.get("/health")
 async def health():
     return {"status": "healthy", "baselines": len(BASELINE), "sessions": len(SESSIONS)}
+
+
+# LiveKit token endpoint
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+LIVEKIT_API_KEY = os.getenv("LIVEKIT_API_KEY", "")
+LIVEKIT_API_SECRET = os.getenv("LIVEKIT_API_SECRET", "")
+LIVEKIT_URL = os.getenv("LIVEKIT_URL", "")
+
+
+@app.get("/api/livekit-token")
+async def get_livekit_token(room: str = "surgeonsight-coaching", identity: str = "user"):
+    """Generate a LiveKit access token for the client to join a room."""
+    if not LIVEKIT_API_KEY or not LIVEKIT_API_SECRET:
+        return {
+            "error": "LiveKit credentials not configured",
+            "message": "Please add LIVEKIT_API_KEY and LIVEKIT_API_SECRET to backend/.env"
+        }
+    
+    try:
+        from livekit import api
+        
+        token = api.AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET) \
+            .with_identity(identity) \
+            .with_name(f"User-{identity}") \
+            .with_grants(api.VideoGrants(
+                room_join=True,
+                room=room,
+            ))
+        
+        return {
+            "token": token.to_jwt(),
+            "url": LIVEKIT_URL,
+            "room": room,
+            "identity": identity
+        }
+    except ImportError:
+        return {
+            "error": "livekit-api package not installed",
+            "message": "Run: pip install livekit-api"
+        }
+    except Exception as e:
+        return {
+            "error": str(e),
+            "message": "Failed to generate LiveKit token"
+        }
+

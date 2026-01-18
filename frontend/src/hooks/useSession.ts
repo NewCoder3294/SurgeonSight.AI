@@ -6,7 +6,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
  */
 export function useWebSocket(sessionId: any, options: any = {}) {
     const {
-        url = 'ws://localhost:3001/ws',
+        url = 'ws://localhost:8000/ws',
         onFeedback = () => { },
         autoReconnect = true
     } = options;

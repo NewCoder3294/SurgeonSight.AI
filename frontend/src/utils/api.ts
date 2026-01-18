@@ -2,7 +2,7 @@
  * API utility for backend communication
  */
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 /**
  * Start a new coaching session
