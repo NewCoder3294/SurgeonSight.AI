@@ -5,50 +5,39 @@ import CoachingSession from '../components/CoachingSession';
 import ExpertVideoPanel from '../components/ExpertVideoPanel';
 import ExpertSummaryPanel from '../components/ExpertSummaryPanel';
 
-interface ExpertAnalysisPayload {
-  procedure: string;
-  stats: {
-    angle_mean: number;
-    angle_std: number;
-    angle_min: number;
-    angle_max: number;
-    speed_mean: number;
-    speed_std: number;
-    jitter_mean: number;
-  };
-  segments: Array<{
-    t_start: number;
-    t_end: number;
-    type: string;
-  }>;
-}
-
 export default function TrainingSession() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisComplete, setAnalysisComplete] = useState(false);
-  const [expertAnalysisPayload, setExpertAnalysisPayload] =
-    useState<ExpertAnalysisPayload | null>(null);
   const [streamingNotes, setStreamingNotes] = useState<string[]>([]);
-  const [keyPoints, setKeyPoints] = useState<string[]>([]);
+  const [analysisResult, setAnalysisResult] = useState<{
+    summary: string;
+    keyConcepts: string[];
+    notableMoments: string[];
+  } | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   const handleAnalysisStart = () => {
     setIsAnalyzing(true);
     setAnalysisComplete(false);
-    setExpertAnalysisPayload(null);
     setStreamingNotes([]);
-    setKeyPoints([]);
+    setAnalysisResult(null);
+    setAnalysisError(null);
   };
 
-  const handleNotesUpdate = (note: string) => {
-    setStreamingNotes(prev => [...prev, note]);
+  const handleNotesUpdate = (notes: string[]) => {
+    // Notes are already deduplicated from ExpertVideoPanel
+    setStreamingNotes(notes);
   };
 
-  const handleKeyPointsExtracted = (points: string[]) => {
-    setKeyPoints(points);
+  const handleAnalysisResult = (result: {
+    summary: string;
+    keyConcepts: string[];
+    notableMoments: string[];
+  }) => {
+    setAnalysisResult(result);
   };
 
-  const handleAnalysisComplete = (payload: ExpertAnalysisPayload) => {
-    setExpertAnalysisPayload(payload);
+  const handleAnalysisComplete = () => {
     setIsAnalyzing(false);
     setAnalysisComplete(true);
   };
@@ -82,16 +71,17 @@ export default function TrainingSession() {
               onAnalysisStart={handleAnalysisStart}
               onAnalysisComplete={handleAnalysisComplete}
               onNotesUpdate={handleNotesUpdate}
-              onKeyPointsExtracted={handleKeyPointsExtracted}
+              onAnalysisResult={handleAnalysisResult}
+              onError={setAnalysisError}
             />
 
             {/* Right: Summary Panel */}
             <ExpertSummaryPanel
               isAnalyzing={isAnalyzing}
               analysisComplete={analysisComplete}
-              expertAnalysisPayload={expertAnalysisPayload}
               streamingNotes={streamingNotes}
-              keyPoints={keyPoints}
+              analysisResult={analysisResult}
+              error={analysisError}
             />
           </div>
         </section>

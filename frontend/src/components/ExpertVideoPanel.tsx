@@ -1,36 +1,17 @@
 import { useState, useRef, useEffect } from 'react';
-import { RealtimeVision } from '@overshoot/sdk';
 import CornerBrackets from './CornerBrackets';
-
-interface ExpertAnalysisPayload {
-  procedure: string;
-  stats: {
-    angle_mean: number;
-    angle_std: number;
-    angle_min: number;
-    angle_max: number;
-    speed_mean: number;
-    speed_std: number;
-    jitter_mean: number;
-  };
-  segments: Array<{
-    t_start: number;
-    t_end: number;
-    type: string;
-  }>;
-}
+import { createOvershootVision, isOvershootConfigured, getApiKeyInfo } from '../services/overshoot';
+import { deduplicateNotes } from '../utils/noteProcessing';
 
 interface ExpertVideoPanelProps {
   isAnalyzing: boolean;
   analysisComplete: boolean;
   onAnalysisStart: () => void;
-  onAnalysisComplete: (payload: ExpertAnalysisPayload) => void;
-  onNotesUpdate: (note: string) => void;
-  onKeyPointsExtracted: (points: string[]) => void;
+  onAnalysisComplete: () => void;
+  onNotesUpdate: (notes: string[]) => void;
+  onAnalysisResult: (result: { summary: string; keyConcepts: string[]; notableMoments: string[] }) => void;
+  onError?: (error: string) => void;
 }
-
-const OVERSHOOT_API_KEY = 'ovs_98bfb98aff5e49b4ec98f93e91ef455a';
-const OVERSHOOT_API_URL = 'https://cluster1.overshoot.ai/api/v0.2';
 
 const ANALYSIS_PROMPT = `You are an expert surgical instructor watching a training video. 
 As you observe, provide concise observations about:
@@ -40,7 +21,8 @@ As you observe, provide concise observations about:
 - Procedural steps being demonstrated
 - Any notable techniques or best practices
 
-Keep each observation to 1-2 sentences. Focus on actionable teaching points.`;
+Keep each observation to 1-2 sentences. Focus on actionable teaching points.
+Avoid repeating the same observation multiple times.`;
 
 export default function ExpertVideoPanel({
   isAnalyzing,
@@ -48,155 +30,202 @@ export default function ExpertVideoPanel({
   onAnalysisStart,
   onAnalysisComplete,
   onNotesUpdate,
-  onKeyPointsExtracted,
+  onAnalysisResult,
+  onError,
 }: ExpertVideoPanelProps) {
   const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoUrl, setVideoUrl] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const visionRef = useRef<RealtimeVision | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const visionInstanceRef = useRef<ReturnType<typeof createOvershootVision> | null>(null);
   const notesAccumulatorRef = useRef<string[]>([]);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const videoEndedCleanupRef = useRef<(() => void) | null>(null);
+
+  // Cleanup video URL on unmount
+  useEffect(() => {
+    return () => {
+      if (videoUrl) {
+        URL.revokeObjectURL(videoUrl);
+      }
+    };
+  }, [videoUrl]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Create video preview URL
+      const url = URL.createObjectURL(file);
+      setVideoUrl(url);
       setVideoFile(file);
+      setError(null);
     }
   };
 
-  // Start analysis when video file is set
+  // Auto-start analysis when video file is set (if configured)
   useEffect(() => {
-    if (videoFile) {
-      startFileAnalysis();
+    if (videoFile && !isAnalyzing && !analysisComplete) {
+      // Small delay to ensure video element is ready
+      const timer = setTimeout(() => {
+        startAnalysis();
+      }, 500);
+      return () => clearTimeout(timer);
     }
-  }, [videoFile]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [videoFile]); // Only depend on videoFile - isAnalyzing/analysisComplete are managed by callbacks
 
-  const startFileAnalysis = async () => {
+  const startAnalysis = async () => {
     if (!videoFile) return;
 
-    console.log('Starting Overshoot analysis for file:', videoFile.name);
-    onAnalysisStart();
-    notesAccumulatorRef.current = [];
+    // Check if Overshoot is configured
+    if (!isOvershootConfigured()) {
+      const errorMsg = 'Overshoot API key not configured. Please set VITE_OVERSHOOT_API_KEY in .env file.';
+      setError(errorMsg);
+      onError?.(errorMsg);
+      return;
+    }
 
-    // Show initial status
-    onNotesUpdate(`Starting AI analysis of "${videoFile.name}"...`);
+    // Debug: Log API key info (safe - only shows prefix)
+    const keyInfo = getApiKeyInfo();
+    console.log('[Debug] Overshoot API Key Status:', keyInfo);
+    if (keyInfo.format === 'invalid') {
+      console.warn('[Debug] API key format may be incorrect. Expected: ovs_...');
+    }
 
     try {
-      const vision = new RealtimeVision({
-        apiUrl: OVERSHOOT_API_URL,
-        apiKey: OVERSHOOT_API_KEY,
+      onAnalysisStart();
+      notesAccumulatorRef.current = [];
+      setError(null);
+
+      const vision = createOvershootVision({
         prompt: ANALYSIS_PROMPT,
-        source: { type: 'video', file: videoFile },
+        file: videoFile,
         processing: {
-          clip_length_seconds: 2,  // 2 second windows for more context
-          delay_seconds: 2,        // Get results every 2 seconds
-          fps: 15,                 // Lower FPS for file processing
-          sampling_ratio: 0.2,     // Sample 20% of frames
+          clip_length_seconds: 2,
+          delay_seconds: 2,
+          fps: 15,
+          sampling_ratio: 0.2,
         },
-        onResult: (result: any) => {
-          console.log('Overshoot result received:', result);
-          const note = result.result || result.text || result.message || (typeof result === 'string' ? result : JSON.stringify(result));
-          if (note && note.trim() && note !== '{}') {
-            notesAccumulatorRef.current.push(note);
-            onNotesUpdate(note);
-          }
+        onResult: (text: string) => {
+          notesAccumulatorRef.current.push(text);
+          // Send deduplicated notes array to parent
+          const deduped = deduplicateNotes(notesAccumulatorRef.current);
+          onNotesUpdate(deduped);
         },
-        onError: (error: any) => {
-          console.error('Overshoot onError:', error);
-          onNotesUpdate(`API Error: ${error.message || error}`);
+        onError: (err: Error) => {
+          console.error('Overshoot error:', err);
+          const errorMsg = `Analysis error: ${err.message}`;
+          setError(errorMsg);
+          onError?.(errorMsg);
         },
       });
 
-      visionRef.current = vision;
-      console.log('Starting vision.start()...');
-      onNotesUpdate('Connecting to Overshoot AI...');
+      visionInstanceRef.current = vision;
       await vision.start();
-      console.log('vision.start() completed');
-      onNotesUpdate('Processing video frames...');
 
-      // Fallback timeout - complete analysis after 15 seconds if no results
-      setTimeout(() => {
+      // Fallback timeout: complete after 60 seconds max (or video duration + buffer)
+      const videoDuration = videoRef.current?.duration;
+      const validDuration = videoDuration && !isNaN(videoDuration) && isFinite(videoDuration) ? videoDuration : 60;
+      const maxTime = Math.min((validDuration + 10) * 1000, 90000); // Max 90 seconds
+
+      timeoutRef.current = setTimeout(() => {
         if (!analysisComplete) {
-          console.log('Fallback timeout triggered - completing analysis');
-          if (notesAccumulatorRef.current.length === 0) {
-            onNotesUpdate('Analysis complete - no observations generated from this video segment.');
-          }
           completeAnalysis();
         }
-      }, 15000); // 15 second timeout for demo
+      }, maxTime);
+
+      // Set up video ended listener
+      const videoEl = videoRef.current;
+      if (videoEl) {
+        const handleEnded = () => {
+          completeAnalysis();
+        };
+        videoEl.addEventListener('ended', handleEnded);
+        
+        // Store cleanup function
+        videoEndedCleanupRef.current = () => {
+          videoEl.removeEventListener('ended', handleEnded);
+        };
+      }
 
     } catch (error: any) {
-      console.error('Overshoot analysis error:', error);
-      onNotesUpdate(`Error: ${error.message || 'Failed to analyze video. Check console for details.'}`);
-      // Fallback to completing with whatever notes we have
-      setTimeout(() => completeAnalysis(), 2000);
+      console.error('Failed to start Overshoot analysis:', error);
+      const errorMsg = error.message || 'Failed to start video analysis';
+      setError(errorMsg);
+      onError?.(errorMsg);
+      onAnalysisComplete();
     }
   };
 
   const completeAnalysis = async () => {
-    // Stop the vision instance
-    if (visionRef.current) {
+    // Clear timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+
+    // Cleanup video ended listener if exists
+    if (videoEndedCleanupRef.current) {
+      videoEndedCleanupRef.current();
+      videoEndedCleanupRef.current = null;
+    }
+
+    // Stop vision instance
+    if (visionInstanceRef.current) {
       try {
-        await visionRef.current.stop();
+        await visionInstanceRef.current.stop();
       } catch (e) {
-        console.log('Vision already stopped');
+        console.log('Vision stop error (ignored):', e);
       }
-      visionRef.current = null;
+      visionInstanceRef.current = null;
     }
 
-    // Extract key points from accumulated notes
-    const allNotes = notesAccumulatorRef.current.join(' ');
-    const keyPoints = extractKeyPoints(allNotes);
-    onKeyPointsExtracted(keyPoints);
+    // Process accumulated notes
+    const { extractSummary, extractKeyConcepts, extractNotableMoments } = await import('../utils/noteProcessing');
+    const dedupedNotes = deduplicateNotes(notesAccumulatorRef.current);
+    
+    // Send final deduplicated notes (ensure parent has latest state)
+    onNotesUpdate(dedupedNotes);
 
-    // Generate mock payload for backwards compatibility
-    const payload: ExpertAnalysisPayload = {
-      procedure: 'surgical_technique',
-      stats: {
-        angle_mean: 15.2,
-        angle_std: 2.8,
-        angle_min: 10.5,
-        angle_max: 22.1,
-        speed_mean: 4.3,
-        speed_std: 0.9,
-        jitter_mean: 0.15,
-      },
-      segments: [
-        { t_start: 0.0, t_end: 5.2, type: 'approach' },
-        { t_start: 5.2, t_end: 12.8, type: 'procedure' },
-        { t_start: 12.8, t_end: 18.5, type: 'technique' },
-      ],
-    };
+    // Extract final summary and key concepts from deduplicated notes
+    const summary = extractSummary(dedupedNotes);
+    const keyConcepts = extractKeyConcepts(dedupedNotes);
+    const notableMoments = extractNotableMoments(dedupedNotes);
 
-    onAnalysisComplete(payload);
-  };
+    // Send structured results to parent
+    onAnalysisResult({
+      summary,
+      keyConcepts,
+      notableMoments,
+    });
 
-  const extractKeyPoints = (text: string): string[] => {
-    // Simple extraction: split by sentences and take key ones
-    // In production, this could use another AI call
-    const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 10);
-    const keyPoints: string[] = [];
-
-    // Take up to 5 unique key points
-    for (const sentence of sentences) {
-      const trimmed = sentence.trim();
-      if (trimmed && !keyPoints.includes(trimmed) && keyPoints.length < 5) {
-        keyPoints.push(trimmed);
-      }
-    }
-
-    // If no key points extracted, provide defaults
-    if (keyPoints.length === 0) {
-      return [
-        'Maintain steady hand positioning',
-        'Focus on controlled movements',
-        'Observe proper technique angles',
-      ];
-    }
-
-    return keyPoints;
+    // Mark analysis as complete
+    onAnalysisComplete();
   };
 
   const handleReset = () => {
+    // Clean up
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    if (videoEndedCleanupRef.current) {
+      videoEndedCleanupRef.current();
+      videoEndedCleanupRef.current = null;
+    }
+    if (visionInstanceRef.current) {
+      visionInstanceRef.current.stop().catch(() => {});
+      visionInstanceRef.current = null;
+    }
+    if (videoUrl) {
+      URL.revokeObjectURL(videoUrl);
+    }
+
     setVideoFile(null);
+    setVideoUrl('');
+    setError(null);
+    notesAccumulatorRef.current = [];
   };
 
   return (
@@ -205,51 +234,73 @@ export default function ExpertVideoPanel({
         <div className="h-full flex flex-col bg-[rgba(0,0,0,0.3)] [data-theme='light']:bg-[rgba(0,0,0,0.05)]">
           <div className="flex border-b border-[rgba(255,255,255,0.1)] [data-theme='light']:border-border-accent">
             <div className="flex-1 bg-transparent px-4 py-4 text-accent-rust uppercase text-xs tracking-wider border-b-2 border-accent-rust bg-accent-rust-glow">
-              File Upload
+              Video Upload & Analysis
             </div>
           </div>
 
-          <div
-            className={`h-full min-h-[400px] flex items-center justify-center cursor-pointer transition-all duration-300 border border-dashed border-[rgba(255,255,255,0.1)] [data-theme='light']:bg-[rgba(0,0,0,0.05)] [data-theme='light']:border-border-accent hover:bg-[rgba(0,180,216,0.05)] hover:border-accent-rust`}
-            onClick={() => !videoFile && fileInputRef.current?.click()}
-          >
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileUpload}
-              accept="video/*"
-              hidden
-            />
-            {videoFile ? (
-              <div className="text-center">
-                <span className="text-accent-rust">VIDEO_FILE</span>
-                <p>{videoFile.name}</p>
+          {videoFile && videoUrl ? (
+            <div className="flex-1 flex flex-col min-h-[400px]">
+              {/* Video Preview */}
+              <div className="relative flex-1 bg-black">
+                <video
+                  ref={videoRef}
+                  src={videoUrl}
+                  controls
+                  className="w-full h-full object-contain"
+                />
                 {isAnalyzing && (
-                  <div className="w-[200px] h-1 bg-[rgba(255,255,255,0.1)] mx-auto my-4 rounded overflow-hidden [data-theme='light']:bg-[rgba(0,0,0,0.1)]">
-                    <div className="h-full bg-accent-rust w-0 animate-[fillBar_3s_ease-out_forwards]" />
+                  <div className="absolute top-2 left-2 bg-bg-primary/90 px-2 py-1 rounded border border-accent-rust">
+                    <span className="font-mono text-xs text-accent-rust uppercase">Analyzing...</span>
                   </div>
                 )}
                 {analysisComplete && (
-                  <div className="mt-2 px-3 py-1 text-xs text-success border border-success uppercase">ANALYSIS COMPLETE</div>
+                  <div className="absolute top-2 left-2 bg-bg-primary/90 px-2 py-1 rounded border border-success">
+                    <span className="font-mono text-xs text-success uppercase">Analysis Complete</span>
+                  </div>
                 )}
+              </div>
+
+              {/* File info and controls */}
+              <div className="p-4 border-t border-[rgba(255,255,255,0.1)] flex items-center justify-between">
+                <div className="flex-1 min-w-0">
+                  <p className="text-text-cream text-sm truncate" title={videoFile.name}>{videoFile.name}</p>
+                  <p className="text-text-dim text-xs">{(videoFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                </div>
                 <button
-                  className="mt-2 bg-transparent border-none text-text-muted underline cursor-pointer text-xs hover:text-error"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleReset();
-                  }}
+                  className="ml-4 px-3 py-1 text-xs font-mono text-text-muted hover:text-error underline transition-colors"
+                  onClick={handleReset}
                 >
                   Remove
                 </button>
               </div>
-            ) : (
+            </div>
+          ) : (
+            <div
+              className="h-full min-h-[400px] flex items-center justify-center cursor-pointer transition-all duration-300 border border-dashed border-[rgba(255,255,255,0.1)] [data-theme='light']:bg-[rgba(0,0,0,0.05)] [data-theme='light']:border-border-accent hover:bg-[rgba(0,180,216,0.05)] hover:border-accent-rust"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileUpload}
+                accept="video/*"
+                hidden
+              />
               <div className="text-center">
                 <span className="text-5xl block mb-4 text-accent-rust">↑</span>
-                <p>Upload Surgical Procedure Video</p>
+                <p className="text-text-cream mb-1">Upload Surgical Procedure Video</p>
                 <span className="text-xs text-text-dim">MP4, MOV supported</span>
               </div>
-            )}
-          </div>
+            </div>
+          )}
+
+          {/* Error display */}
+          {error && (
+            <div className="p-4 bg-error/10 border border-error/30 text-error text-sm">
+              <p className="font-mono text-xs uppercase mb-1">Error</p>
+              <p>{error}</p>
+            </div>
+          )}
         </div>
       </CornerBrackets>
     </div>
