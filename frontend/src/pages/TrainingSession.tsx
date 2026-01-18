@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import CornerBrackets from '../components/CornerBrackets';
 import ThemeToggle from '../components/ThemeToggle';
 import CoachingSession from '../components/CoachingSession';
 import ExpertVideoPanel from '../components/ExpertVideoPanel';
 import ExpertSummaryPanel from '../components/ExpertSummaryPanel';
+import { useExpertBaseline } from '../hooks/useExpertBaseline';
 
 export default function TrainingSession() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -15,6 +16,9 @@ export default function TrainingSession() {
     notableMoments: string[];
   } | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+
+  // Expert baseline hook for live comparison
+  const { storeBaseline, expertMetrics, isStored: hasExpertBaseline } = useExpertBaseline();
 
   const handleAnalysisStart = () => {
     setIsAnalyzing(true);
@@ -41,6 +45,13 @@ export default function TrainingSession() {
     setIsAnalyzing(false);
     setAnalysisComplete(true);
   };
+
+  // Store expert baseline when analysis completes
+  useEffect(() => {
+    if (analysisComplete && streamingNotes.length > 0 && analysisResult) {
+      storeBaseline('Surgical Procedure', streamingNotes, analysisResult);
+    }
+  }, [analysisComplete, streamingNotes, analysisResult, storeBaseline]);
 
   return (
     <div className="min-h-screen bg-bg-primary text-text-cream relative pb-16 [data-theme='light']:text-text-cream">
@@ -99,7 +110,10 @@ export default function TrainingSession() {
           </div>
 
           <div className="relative min-h-[400px] transition-all duration-500 mt-6">
-            <CoachingSession embedded={true} />
+            <CoachingSession
+              embedded={true}
+              expertMetrics={hasExpertBaseline ? expertMetrics : undefined}
+            />
           </div>
         </section>
       </main>

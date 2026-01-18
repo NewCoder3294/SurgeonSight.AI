@@ -13,6 +13,7 @@ import { createMetricsWindow, addMetric, computeFrameDifference } from '../utils
 import type { MotionMetrics } from '../utils/reproMetrics';
 import { FeedbackGenerator } from '../utils/reproFeedback';
 import { useMediaPipeHands, type HandData, type SurgicalMetrics } from '../hooks/useMediaPipeHands';
+import type { ExpertMetrics } from '../hooks/useExpertBaseline';
 
 // Demo feedback messages (fallback when backend not available)
 const DEMO_FEEDBACK = [
@@ -28,7 +29,12 @@ const DEMO_FEEDBACK = [
     { type: 'encouragement', message: "That's the technique." },
 ];
 
-export default function CoachingSession({ embedded = false }: { embedded?: boolean }) {
+interface CoachingSessionProps {
+    embedded?: boolean;
+    expertMetrics?: ExpertMetrics; // Expert baseline for comparison
+}
+
+export default function CoachingSession({ embedded = false, expertMetrics }: CoachingSessionProps) {
     const navigate = useNavigate();
     const videoFeedRef = useRef(null);
 
@@ -49,6 +55,7 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
 
     const timerRef = useRef<any>(null);
     const feedbackTimeoutRef = useRef<any>(null);
+    const lastCoachingTimeRef = useRef<number>(0); // Track last coaching message time
 
     // Motion metrics state
     const metricsWindowRef = useRef(createMetricsWindow(5, 30));
@@ -64,6 +71,7 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
     // LiveKit voice feedback with metrics narration
     const {
         speakMetrics,
+        speakLoud, // NEW: for urgent coaching
         voiceEnabled,
         toggleVoice,
         isSpeaking: isVoiceSpeaking
@@ -118,13 +126,79 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
         onHandsDetected: (hands) => {
             setDetectedHands(hands);
             if (hands.length > 0) {
-                setCurrentMetrics(hands[0].metrics);
+                const metrics = hands[0].metrics;
+                setCurrentMetrics(metrics);
                 setIsAnalyzing(false);
                 setTimeout(() => setIsAnalyzing(true), 200);
 
-                // Speak metrics if voice is enabled
-                if (voiceEnabled) {
-                    speakMetrics(hands[0].metrics);
+                // Compare against expert baseline if available
+                if (expertMetrics && voiceEnabled) {
+                    const now = Date.now();
+                    const timeSinceLastCoaching = now - lastCoachingTimeRef.current;
+
+                    // Only coach every 4 seconds to avoid overwhelming
+                    if (timeSinceLastCoaching > 4000) {
+                        // Check angle deviation
+                        const angleDiff = Math.abs(metrics.scalpelAngle - expertMetrics.angleTarget);
+                        const tolerance = expertMetrics.angleTolerance || 15;
+
+                        if (angleDiff > tolerance * 2) {
+                            // Major deviation - LOUD urgent coaching
+                            const direction = metrics.scalpelAngle > expertMetrics.angleTarget ? 'lower' : 'raise';
+                            const message = `Adjust angle! You're at ${Math.round(metrics.scalpelAngle)} degrees. Target is ${expertMetrics.angleTarget} degrees. ${direction === 'lower' ? 'Lower your wrist.' : 'Raise your wrist.'}`;
+                            speakLoud(message);
+                            lastCoachingTimeRef.current = now;
+
+                            // Show as feedback
+                            setCurrentFeedback({
+                                status: 'WARNING',
+                                message,
+                                timestamp: sessionTime,
+                                id: now
+                            });
+                        } else if (metrics.gripType !== 'unknown' && expertMetrics.expectedGripType !== 'unknown' &&
+                            metrics.gripType !== expertMetrics.expectedGripType) {
+                            // Wrong grip type
+                            const message = `Switch to ${expertMetrics.expectedGripType} grip! Expert uses ${expertMetrics.expectedGripType} grip for precision.`;
+                            speakLoud(message);
+                            lastCoachingTimeRef.current = now;
+
+                            setCurrentFeedback({
+                                status: 'WARNING',
+                                message,
+                                timestamp: sessionTime,
+                                id: now
+                            });
+                        } else if (metrics.steadiness < (expertMetrics.steadinessTarget - 20)) {
+                            // Low steadiness
+                            const message = `Stabilize your hand! Steadiness at ${Math.round(metrics.steadiness)} percent. Target is ${expertMetrics.steadinessTarget} percent or higher.`;
+                            speakLoud(message);
+                            lastCoachingTimeRef.current = now;
+
+                            setCurrentFeedback({
+                                status: 'WARNING',
+                                message,
+                                timestamp: sessionTime,
+                                id: now
+                            });
+                        } else if (angleDiff <= tolerance && metrics.steadiness >= expertMetrics.steadinessTarget) {
+                            // On track - occasional encouragement
+                            if (timeSinceLastCoaching > 15000) {
+                                speakLoud('Good technique! Maintain this angle and steadiness.');
+                                lastCoachingTimeRef.current = now;
+
+                                setCurrentFeedback({
+                                    status: 'ON_TRACK',
+                                    message: 'Good technique! Maintain this angle and steadiness.',
+                                    timestamp: sessionTime,
+                                    id: now
+                                });
+                            }
+                        }
+                    }
+                } else if (voiceEnabled) {
+                    // No expert baseline - just speak metrics periodically
+                    speakMetrics(metrics);
                 }
             }
         }
@@ -417,6 +491,7 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
                                 gripState={mockGrip}
                                 showMetrics={true}
                                 metrics={currentMetrics}
+                                expertAngleTarget={expertMetrics?.angleTarget}
                             />
                         </CornerBrackets>
                         {mediaPipeLoading && (

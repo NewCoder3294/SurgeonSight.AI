@@ -18,6 +18,8 @@ interface VideoFeedProps {
     showSkeleton?: boolean;
     showMetrics?: boolean;
     metrics?: SurgicalMetrics | null;
+    expertAngleTarget?: number; // Expert baseline angle for comparison
+    detectedTool?: { type: string; confidence: number }; // Detected surgical tool
 }
 
 /**
@@ -31,7 +33,9 @@ const VideoFeed = forwardRef(function VideoFeed({
     showLandmarks = true,
     showSkeleton = true,
     showMetrics = true,
-    metrics = null
+    metrics = null,
+    expertAngleTarget,
+    detectedTool
 }: VideoFeedProps, ref: any) {
     const videoRef = useRef<any>(null);
     const canvasRef = useRef<any>(null);
@@ -174,6 +178,40 @@ const VideoFeed = forwardRef(function VideoFeed({
                 )}
             </div>
 
+            {/* Expert Target Indicator */}
+            {expertAngleTarget !== undefined && metrics && (
+                <div className="absolute top-5 left-5 p-2 bg-[rgba(10,15,26,0.9)] border border-border-subtle backdrop-blur-sm [data-theme='light']:bg-[rgba(248,250,252,0.95)]">
+                    <div className="flex flex-col gap-1">
+                        <span className="font-mono text-[0.55rem] tracking-wider text-text-dim uppercase">Expert Target</span>
+                        <div className="flex items-center gap-2">
+                            <span className="font-mono text-lg text-accent-rust">{expertAngleTarget}°</span>
+                            <span className="font-mono text-xs text-text-dim">vs</span>
+                            <span className={`font-mono text-lg ${Math.abs(metrics.scalpelAngle - expertAngleTarget) <= 15 ? 'text-success' : 'text-warning'}`}>
+                                {Math.round(metrics.scalpelAngle)}°
+                            </span>
+                        </div>
+                        <div className={`font-mono text-[0.5rem] tracking-wider uppercase ${Math.abs(metrics.scalpelAngle - expertAngleTarget) <= 15 ? 'text-success' : 'text-warning'}`}>
+                            {Math.abs(metrics.scalpelAngle - expertAngleTarget) <= 15 ? '✓ ON TARGET' : `↻ ADJUST ${Math.round(Math.abs(metrics.scalpelAngle - expertAngleTarget))}°`}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Detected Tool Indicator */}
+            {detectedTool && detectedTool.type !== 'none' && detectedTool.confidence > 0.4 && (
+                <div className="absolute top-5 right-20 p-2 bg-[rgba(10,15,26,0.9)] border border-accent-rust backdrop-blur-sm [data-theme='light']:bg-[rgba(248,250,252,0.95)]">
+                    <div className="flex flex-col gap-0.5">
+                        <span className="font-mono text-[0.55rem] tracking-wider text-text-dim uppercase">Tool Detected</span>
+                        <span className="font-display text-base tracking-wider text-accent-rust uppercase">
+                            {detectedTool.type.replace('_', ' ')}
+                        </span>
+                        <span className="font-mono text-[0.5rem] tracking-wider text-text-dim">
+                            CONF: {(detectedTool.confidence * 100).toFixed(0)}%
+                        </span>
+                    </div>
+                </div>
+            )}
+
             {/* Status bar */}
             <div className="absolute bottom-0 left-0 right-0 flex gap-4 px-2 py-1 bg-[rgba(10,10,10,0.7)] backdrop-blur-sm [data-theme='light']:bg-[rgba(255,255,255,0.8)]">
                 <span className="font-mono text-xs tracking-wider text-text-dim uppercase flex items-center gap-1">
@@ -185,6 +223,11 @@ const VideoFeed = forwardRef(function VideoFeed({
                 {hands.length > 0 && (
                     <span className="font-mono text-xs tracking-wider text-success uppercase">
                         {hands.length} HAND{hands.length > 1 ? 'S' : ''}
+                    </span>
+                )}
+                {detectedTool && detectedTool.type !== 'none' && (
+                    <span className="font-mono text-xs tracking-wider text-accent-rust uppercase">
+                        🔧 {detectedTool.type.replace('_', ' ')}
                     </span>
                 )}
             </div>

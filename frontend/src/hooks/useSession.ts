@@ -167,7 +167,7 @@ export function useVoiceFeedback() {
         }
     }, []);
 
-    // Web Speech API fallback
+    // Web Speech API fallback - LOUD for surgical coaching
     const speakWithWebSpeech = useCallback((text: any) => {
         if (!synthRef.current) {
             setIsSpeaking(false);
@@ -178,9 +178,9 @@ export function useVoiceFeedback() {
         synthRef.current.cancel();
 
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 1.0;
+        utterance.rate = 0.95; // Slightly slower for clarity
         utterance.pitch = 1.0;
-        utterance.volume = 1.0;
+        utterance.volume = 1.0; // MAXIMUM VOLUME
 
         // Try to find a good voice
         const voices = synthRef.current.getVoices();

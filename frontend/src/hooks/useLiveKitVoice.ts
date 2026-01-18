@@ -131,19 +131,22 @@ export function useLiveKitVoice({
         roomRef.current?.disconnect();
     }, []);
 
-    // Web Speech API fallback
-    const speakWithWebSpeech = useCallback((text: string) => {
+    // Web Speech API - LOUD and CLEAR for surgical coaching
+    const speakWithWebSpeech = useCallback((text: string, urgent: boolean = false) => {
         if (!synthRef.current || !voiceEnabled) return;
 
-        // Cancel any ongoing speech
-        synthRef.current.cancel();
+        // Cancel any ongoing speech for urgent messages
+        if (urgent) {
+            synthRef.current.cancel();
+        }
 
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 1.1; // Slightly faster for metrics
+        // LOUD and CLEAR settings for surgical coaching
+        utterance.rate = urgent ? 0.9 : 1.0; // Slower for urgent messages
         utterance.pitch = 1.0;
-        utterance.volume = 0.8;
+        utterance.volume = 1.0; // MAXIMUM VOLUME
 
-        // Try to find a good voice
+        // Try to find a clear voice (prefer Samantha on Mac for clarity)
         const voices = synthRef.current.getVoices();
         const preferredVoice = voices.find(v =>
             v.name.includes('Samantha') ||
@@ -181,7 +184,13 @@ export function useLiveKitVoice({
     // Speak arbitrary text
     const speak = useCallback((text: string) => {
         if (!voiceEnabled) return;
-        speakWithWebSpeech(text);
+        speakWithWebSpeech(text, false);
+    }, [speakWithWebSpeech, voiceEnabled]);
+
+    // Speak LOUD and URGENT coaching message (interrupts current speech)
+    const speakLoud = useCallback((text: string) => {
+        if (!voiceEnabled) return;
+        speakWithWebSpeech(text, true);
     }, [speakWithWebSpeech, voiceEnabled]);
 
     // Stop speaking
@@ -211,6 +220,7 @@ export function useLiveKitVoice({
         disconnect,
         speakMetrics,
         speak,
+        speakLoud, // NEW: for urgent coaching
         stop,
         toggleVoice,
         setVoiceEnabled
