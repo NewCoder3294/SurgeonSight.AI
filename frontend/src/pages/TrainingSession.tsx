@@ -63,7 +63,7 @@ export default function TrainingSession() {
             </CornerBrackets>
           </div>
 
-          <div className="grid grid-cols-2 grid-rows-[auto_auto] gap-6 mt-6">
+          <div className="grid grid-cols-[2fr_3fr] gap-6 mt-6">
             {/* Left: Video Panel */}
             <ExpertVideoPanel
               isAnalyzing={isAnalyzing}
@@ -99,15 +99,7 @@ export default function TrainingSession() {
           </div>
 
           <div className="relative min-h-[400px] transition-all duration-500 mt-6">
-            {!analysisComplete && (
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center bg-[rgba(10,10,15,0.9)] px-12 py-8 rounded-lg border border-accent-rust shadow-[0_0_30px_rgba(0,180,216,0.2)] text-white">
-                <span className="text-4xl mb-4">🔒</span>
-                <p>Complete Analysis Phase to Unlock</p>
-              </div>
-            )}
-            <div className={!analysisComplete ? 'blur-[10px] opacity-40 pointer-events-none' : ''}>
-              <CoachingSession embedded={true} />
-            </div>
+            <CoachingSession embedded={true} />
           </div>
         </section>
       </main>

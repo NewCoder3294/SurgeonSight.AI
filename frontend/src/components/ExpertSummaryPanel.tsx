@@ -1,14 +1,22 @@
 /**
- * ExpertSummaryPanel - Displays AI-generated analysis results
+ * ExpertSummaryPanel - Displays AI-generated analysis results for Part 1
  * 
  * States:
  * - Idle: "Upload video to generate observations"
- * - Analyzing: Shows streaming notes as they arrive
- * - Complete: Shows final summary, key concepts, and notable moments
+ * - Analyzing: Shows streaming LOG items in scrolling feed (paced, non-repeating)
+ * - Complete: Shows Overview (2 sentences), Key Concepts (4-8 chips, ≤8 words each), Notable Moments (0-4)
  * - Error: Shows error message if analysis fails
+ * 
+ * Overshoot Output Format:
+ * - LOG: <one sentence, 8-16 words> → displayed in Observation Log feed
+ * - MOMENT: <optional time> <one sentence, 8-18 words> → extracted to Notable Moments
+ * 
+ * Throttling: Results are buffered and flushed every 3-5 seconds for paced UI updates
+ * Deduplication: Aggressive (exact + near-duplicate >80% word overlap)
  */
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
+import { parseOvershootOutput } from '../utils/noteProcessing';
 
 interface ExpertSummaryPanelProps {
   isAnalyzing: boolean;
@@ -29,7 +37,17 @@ export default function ExpertSummaryPanel({
   analysisResult,
   error,
 }: ExpertSummaryPanelProps) {
-  const hasNotes = streamingNotes.length > 0;
+  // Parse streaming notes to extract LOG items for Observation Log feed
+  const logItems = useMemo(() => {
+    const logs: string[] = [];
+    for (const note of streamingNotes) {
+      const parsed = parseOvershootOutput(note);
+      logs.push(...parsed.logs);
+    }
+    return logs;
+  }, [streamingNotes]);
+  
+  const hasLogs = logItems.length > 0;
 
   // Debug: Load checkOvershootConfig for console debugging
   useEffect(() => {
@@ -42,12 +60,12 @@ export default function ExpertSummaryPanel({
   }, [error]);
 
   return (
-    <div className="row-start-1 col-start-2 min-h-[400px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] rounded-lg p-6 relative overflow-hidden [data-theme='light']:bg-[rgba(0,0,0,0.03)] [data-theme='light']:border-border-subtle">
-      <h3 className="mt-0 mb-4 text-accent-rust text-sm uppercase tracking-wider flex items-center gap-2">
+    <div className="row-start-1 col-start-2 h-[600px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] rounded-lg p-6 relative flex flex-col [data-theme='light']:bg-[rgba(0,0,0,0.03)] [data-theme='light']:border-border-subtle">
+      <h3 className="mt-0 mb-4 text-accent-rust text-sm uppercase tracking-wider flex items-center gap-2 flex-shrink-0">
         <span>◈</span> AI Observation Log
       </h3>
 
-      <div className="flex-1 flex flex-col gap-4">
+      <div className="flex-1 flex flex-col gap-4 overflow-y-auto min-h-0">
         {/* Error State */}
         {error && (
           <div className="p-4 bg-error/10 border border-error/30 rounded text-error text-sm">
@@ -77,21 +95,21 @@ export default function ExpertSummaryPanel({
         )}
 
         {/* Idle State */}
-        {!error && !isAnalyzing && !analysisComplete && !hasNotes && (
+        {!error && !isAnalyzing && !analysisComplete && !hasLogs && (
           <div className="text-text-muted italic text-center py-8">
             Upload video to generate observations
           </div>
         )}
 
-        {/* Analyzing State - Show Streaming Notes */}
-        {isAnalyzing && hasNotes && (
-          <div className="space-y-3 max-h-[300px] overflow-y-auto">
-            {streamingNotes.map((note, i) => (
+        {/* Analyzing State - Show Streaming LOG Items (scrolling chat-like feed) */}
+        {isAnalyzing && hasLogs && (
+          <div className="space-y-3">
+            {logItems.map((log, i) => (
               <div
                 key={i}
                 className="p-3 bg-[rgba(255,255,255,0.02)] border-l-2 border-accent-rust rounded-r text-text-cream text-sm leading-relaxed animate-fade-in"
               >
-                {note}
+                {log}
               </div>
             ))}
             <div className="text-text-muted italic text-sm flex items-center gap-2">
@@ -101,8 +119,8 @@ export default function ExpertSummaryPanel({
           </div>
         )}
 
-        {/* Analyzing State - No Notes Yet */}
-        {isAnalyzing && !hasNotes && !error && (
+        {/* Analyzing State - No Logs Yet */}
+        {isAnalyzing && !hasLogs && !error && (
           <div className="text-text-muted italic text-center py-8">
             <div className="flex items-center justify-center gap-2 mb-2">
               <span className="w-2 h-2 rounded-full bg-accent-rust animate-pulse" />
@@ -112,14 +130,14 @@ export default function ExpertSummaryPanel({
           </div>
         )}
 
-        {/* Complete State - Show Final Summary */}
+        {/* Complete State - Show Overview, Key Concepts, Notable Moments */}
         {analysisComplete && analysisResult && (
-          <div className="space-y-4 max-h-[400px] overflow-y-auto">
-            {/* Summary Section */}
+          <div className="space-y-4">
+            {/* Overview (2 sentences max) */}
             {analysisResult.summary && (
               <div>
                 <h4 className="text-accent-rust text-xs uppercase tracking-wider mb-2 font-mono">
-                  Summary
+                  Overview
                 </h4>
                 <p className="text-text-cream text-sm leading-relaxed">
                   {analysisResult.summary}
@@ -127,7 +145,7 @@ export default function ExpertSummaryPanel({
               </div>
             )}
 
-            {/* Key Concepts */}
+            {/* Key Concepts (4-8 chips, ≤8 words each, verbs allowed) */}
             {analysisResult.keyConcepts.length > 0 && (
               <div>
                 <h4 className="text-accent-rust text-xs uppercase tracking-wider mb-2 font-mono">
@@ -146,7 +164,7 @@ export default function ExpertSummaryPanel({
               </div>
             )}
 
-            {/* Notable Moments */}
+            {/* Notable Moments (0-4 items, time-based if available) */}
             {analysisResult.notableMoments.length > 0 && (
               <div>
                 <h4 className="text-accent-rust text-xs uppercase tracking-wider mb-2 font-mono">
@@ -162,16 +180,16 @@ export default function ExpertSummaryPanel({
               </div>
             )}
 
-            {/* Show all notes if no structured data extracted */}
-            {!analysisResult.summary && streamingNotes.length > 0 && (
+            {/* Fallback: Show Observation Log if no structured data */}
+            {!analysisResult.summary && hasLogs && (
               <div>
                 <h4 className="text-accent-rust text-xs uppercase tracking-wider mb-2 font-mono">
                   Observations
                 </h4>
                 <div className="space-y-2">
-                  {streamingNotes.map((note, i) => (
+                  {logItems.map((log, i) => (
                     <p key={i} className="text-text-cream text-sm leading-relaxed">
-                      {note}
+                      {log}
                     </p>
                   ))}
                 </div>

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import CornerBrackets from './CornerBrackets';
 import { createOvershootVision, isOvershootConfigured, getApiKeyInfo } from '../services/overshoot';
-import { deduplicateNotes } from '../utils/noteProcessing';
+import { deduplicateNotes, parseOvershootOutput, isNearDuplicate, hasNewContentTokens } from '../utils/noteProcessing';
 
 interface ExpertVideoPanelProps {
   isAnalyzing: boolean;
@@ -13,16 +13,31 @@ interface ExpertVideoPanelProps {
   onError?: (error: string) => void;
 }
 
-const ANALYSIS_PROMPT = `You are an expert surgical instructor watching a training video. 
-As you observe, provide concise observations about:
-- Instrument handling technique
-- Hand positioning and grip
-- Incision angles and approach
-- Procedural steps being demonstrated
-- Any notable techniques or best practices
+/**
+ * Overshoot Prompt - Strict format for Part 1
+ * 
+ * Outputs ONLY:
+ * - LOG: <one sentence, <=16 words>
+ * - MOMENT: <optional time> <one sentence, 8-18 words>
+ * 
+ * Throttling: Overshoot results are buffered in queue and flushed to UI every 3500ms.
+ * On each flush, the best candidate is selected (longest unique or latest non-empty).
+ * See flushResults() function where THROTTLE_INTERVAL_MS is set (currently 3500ms).
+ */
+const ANALYSIS_PROMPT = `You are an expert surgical instructor observing a procedure video.
+STRICT RULES:
+- Output at most ONE item every 3–5 seconds.
+- Each item must be ONE sentence, <=16 words.
+- Use surgical/technical terms (grip, retraction, exposure, force modulation, angle control, wrist stability, tissue handling).
+- Do NOT restate previous observations. Output only when a new technique point appears.
+- Do NOT invent timestamps. Only include time if it is clearly known; otherwise omit.
+- No markdown, no bullets, no numbering.
 
-Keep each observation to 1-2 sentences. Focus on actionable teaching points.
-Avoid repeating the same observation multiple times.`;
+FORMAT:
+LOG: <one sentence, <=16 words>
+MOMENT: <optional time> <one sentence, 8–18 words>
+
+Begin.`;
 
 export default function ExpertVideoPanel({
   isAnalyzing,
@@ -39,9 +54,18 @@ export default function ExpertVideoPanel({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const visionInstanceRef = useRef<ReturnType<typeof createOvershootVision> | null>(null);
-  const notesAccumulatorRef = useRef<string[]>([]);
+  // Store notes with optional timestamps (attached from video.currentTime in code, not from model)
+  const notesAccumulatorRef = useRef<Array<{ text: string; timestamp?: number }>>([]);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const videoEndedCleanupRef = useRef<(() => void) | null>(null);
+  
+  // Throttling: Queue incoming Overshoot messages and flush to UI on interval
+  // THROTTLE_INTERVAL_MS: Controls how often we flush (currently 3500ms = ~3.5 seconds)
+  // To tune: Change this value to adjust pacing (lower = faster updates, higher = slower)
+  const THROTTLE_INTERVAL_MS = 3500;
+  const messageQueueRef = useRef<string[]>([]);
+  const flushIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const acceptedNotesRef = useRef<string[]>([]); // Track last ~15 accepted notes for dedupe
 
   // Cleanup video URL on unmount
   useEffect(() => {
@@ -108,10 +132,10 @@ export default function ExpertVideoPanel({
           sampling_ratio: 0.2,
         },
         onResult: (text: string) => {
-          notesAccumulatorRef.current.push(text);
-          // Send deduplicated notes array to parent
-          const deduped = deduplicateNotes(notesAccumulatorRef.current);
-          onNotesUpdate(deduped);
+          // Queue incoming messages for throttled processing
+          // Parse to extract LOG items (ignore MOMENT items in streaming, they'll be extracted on completion)
+          const parsed = parseOvershootOutput(text);
+          messageQueueRef.current.push(...parsed.logs);
         },
         onError: (err: Error) => {
           console.error('Overshoot error:', err);
@@ -122,6 +146,13 @@ export default function ExpertVideoPanel({
       });
 
       visionInstanceRef.current = vision;
+      
+      // Initialize flush interval: flush queue and pick best candidate every THROTTLE_INTERVAL_MS
+      // See THROTTLE_INTERVAL_MS constant above to tune the pacing
+      flushIntervalRef.current = setInterval(() => {
+        flushResults();
+      }, THROTTLE_INTERVAL_MS);
+      
       await vision.start();
 
       // Fallback timeout: complete after 60 seconds max (or video duration + buffer)
@@ -158,12 +189,112 @@ export default function ExpertVideoPanel({
     }
   };
 
+  /**
+   * Flush queued messages: pick the best candidate and add to accumulator if it passes filters
+   * 
+   * Strategy:
+   * 1. Filter queue: remove empty/invalid messages
+   * 2. Dedupe: remove exact duplicates and near-duplicates (Jaccard >= 0.75)
+   * 3. Template dedupe: require at least 2 new content tokens vs last accepted
+   * 4. Pick best candidate: longest unique message (most informative)
+   * 5. If candidate passes, append to accumulator and update UI
+   * 6. Clear queue for next interval
+   * 
+   * Throttle interval is controlled by THROTTLE_INTERVAL_MS constant (currently 3500ms)
+   */
+  const flushResults = () => {
+    if (messageQueueRef.current.length === 0) return;
+    
+    // Filter: keep only non-empty LOG items
+    const candidates = messageQueueRef.current
+      .map(msg => msg.trim())
+      .filter(msg => msg.length > 0);
+    
+    if (candidates.length === 0) {
+      messageQueueRef.current = [];
+      return;
+    }
+    
+    // Pick best candidate: longest unique message (most informative)
+    // Sort by length descending, then pick first that passes filters
+    const sortedCandidates = [...candidates].sort((a, b) => b.length - a.length);
+    
+    let selectedCandidate: string | null = null;
+    
+    for (const candidate of sortedCandidates) {
+      // Check exact duplicate against accumulator
+      const normalizedCandidate = candidate.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+      const isExactDuplicate = notesAccumulatorRef.current.some(note => {
+        const normalizedNote = note.text.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+        return normalizedNote === normalizedCandidate;
+      });
+      
+      if (isExactDuplicate) continue;
+      
+      // Check near-duplicate using Jaccard similarity (>= 0.75 threshold)
+      if (isNearDuplicate(candidate, acceptedNotesRef.current, 15)) {
+        continue;
+      }
+      
+      // Template dedupe: require at least 2 new content tokens
+      const lastAccepted = acceptedNotesRef.current.length > 0 
+        ? acceptedNotesRef.current[acceptedNotesRef.current.length - 1] 
+        : null;
+      if (!hasNewContentTokens(candidate, lastAccepted)) {
+        continue;
+      }
+      
+      // Candidate passed all filters
+      selectedCandidate = candidate;
+      break;
+    }
+    
+    // If we found a valid candidate, add it to accumulator with timestamp
+    if (selectedCandidate) {
+      // Capture video.currentTime when logging (code-attached timestamp, trusted)
+      const videoEl = videoRef.current;
+      const timestamp = videoEl && !isNaN(videoEl.currentTime) && isFinite(videoEl.currentTime) 
+        ? videoEl.currentTime 
+        : undefined;
+      
+      const noteWithTimestamp: { text: string; timestamp?: number } = {
+        text: selectedCandidate,
+        timestamp,
+      };
+      
+      notesAccumulatorRef.current.push(noteWithTimestamp);
+      
+      // Track in accepted notes (keep last 15 for dedupe lookback - text only for dedupe)
+      acceptedNotesRef.current.push(selectedCandidate);
+      if (acceptedNotesRef.current.length > 15) {
+        acceptedNotesRef.current.shift();
+      }
+      
+      // Update parent with current state (extract text for UI)
+      const noteTexts = notesAccumulatorRef.current.map(n => n.text);
+      const deduped = deduplicateNotes(noteTexts);
+      onNotesUpdate(deduped);
+    }
+    
+    // Clear queue for next interval
+    messageQueueRef.current = [];
+  };
+
   const completeAnalysis = async () => {
     // Clear timeout
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
+
+    // Clear flush interval
+    if (flushIntervalRef.current) {
+      clearInterval(flushIntervalRef.current);
+      flushIntervalRef.current = null;
+    }
+
+    // Flush any remaining buffered results
+    flushResults();
 
     // Cleanup video ended listener if exists
     if (videoEndedCleanupRef.current) {
@@ -181,17 +312,23 @@ export default function ExpertVideoPanel({
       visionInstanceRef.current = null;
     }
 
-    // Process accumulated notes
-    const { extractSummary, extractKeyConcepts, extractNotableMoments } = await import('../utils/noteProcessing');
-    const dedupedNotes = deduplicateNotes(notesAccumulatorRef.current);
+    // Process accumulated notes (generate Overview at completion only)
+    const { extractSummary, extractKeyConcepts, extractNotableMoments, deduplicateNotes } = await import('../utils/noteProcessing');
+    
+    // Extract text for deduplication and summary/key concepts extraction
+    const noteTexts = notesAccumulatorRef.current.map(n => n.text);
+    const dedupedNoteTexts = deduplicateNotes(noteTexts);
 
-    // Send final deduplicated notes (ensure parent has latest state)
-    onNotesUpdate(dedupedNotes);
+    // Send final deduplicated notes (text only for UI streaming log)
+    onNotesUpdate(dedupedNoteTexts);
 
-    // Extract final summary and key concepts from deduplicated notes
-    const summary = extractSummary(dedupedNotes);
-    const keyConcepts = extractKeyConcepts(dedupedNotes);
-    const notableMoments = extractNotableMoments(dedupedNotes);
+    // Extract final summary, key concepts, and notable moments at completion
+    // Overview: abstract themes only, not verbatim log sentences
+    const summary = extractSummary(dedupedNoteTexts);
+    const keyConcepts = extractKeyConcepts(dedupedNoteTexts);
+    
+    // Notable moments: use notes with code-attached timestamps (not model-provided)
+    const notableMoments = extractNotableMoments(notesAccumulatorRef.current);
 
     // Send structured results to parent
     onAnalysisResult({
@@ -210,6 +347,10 @@ export default function ExpertVideoPanel({
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
+    if (flushIntervalRef.current) {
+      clearInterval(flushIntervalRef.current);
+      flushIntervalRef.current = null;
+    }
     if (videoEndedCleanupRef.current) {
       videoEndedCleanupRef.current();
       videoEndedCleanupRef.current = null;
@@ -226,6 +367,8 @@ export default function ExpertVideoPanel({
     setVideoUrl('');
     setError(null);
     notesAccumulatorRef.current = [];
+    messageQueueRef.current = [];
+    acceptedNotesRef.current = [];
   };
 
   return (
@@ -239,9 +382,9 @@ export default function ExpertVideoPanel({
           </div>
 
           {videoFile && videoUrl ? (
-            <div className="flex-1 flex flex-col min-h-[400px]">
+            <div className="flex-1 flex flex-col min-h-[400px] max-h-[600px]">
               {/* Video Preview */}
-              <div className="relative flex-1 bg-black">
+              <div className="relative flex-1 bg-black min-h-0">
                 <video
                   ref={videoRef}
                   src={videoUrl}
