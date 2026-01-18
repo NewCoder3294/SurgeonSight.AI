@@ -365,7 +365,7 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
 
             {/* Main content */}
             <main className="flex-1 flex flex-col gap-6 max-[1000px]:gap-4">
-                <div className="grid grid-cols-[1.2fr_1fr] gap-6 w-full mx-auto max-[1000px]:grid-cols-1">
+                <div className="grid grid-cols-[1fr_1fr] gap-6 w-full mx-auto max-[1000px]:grid-cols-1">
                     {/* Left: Video feed (moderate size, not dominant) */}
                     <div className="relative flex flex-col bg-black/20 rounded-lg overflow-hidden border border-white/5">
                         <CornerBrackets size="xl" animated>
@@ -392,30 +392,6 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
                         </div>
                     </div>
                 </div>
-
-                {/* Minimal Activity Trail - Bottom Strip (3-5 items max, state changes only) */}
-                {feedbackHistory.length > 0 && (
-                    <div className="w-full mx-auto bg-bg-secondary border border-border-subtle p-3">
-                        <div className="flex items-center gap-2 overflow-x-auto">
-                            {feedbackHistory.slice(-5).reverse().map((item: any) => {
-                                const status = item.status || (item.type === 'correction' ? 'WARNING' : 'ON_TRACK');
-                                const statusLabels: Record<string, { label: string; color: string }> = {
-                                    'ON_TRACK': { label: 'ON TRACK', color: 'text-success border-success' },
-                                    'WARNING': { label: 'ADJUST', color: 'text-accent-rust border-accent-rust' },
-                                    'CRITICAL': { label: 'CRITICAL', color: 'text-error border-error' },
-                                };
-                                const config = statusLabels[status] || statusLabels['ON_TRACK'];
-                                return (
-                                    <div key={item.id} className={`flex items-center gap-1.5 px-2 py-1 bg-bg-primary border border-l-2 ${config.color} shrink-0`}>
-                                        <span className={`font-mono text-[0.6rem] tracking-wider uppercase ${config.color}`}>
-                                            {config.label}
-                                        </span>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
             </main>
         </div>
     );
