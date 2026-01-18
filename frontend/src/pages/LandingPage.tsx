@@ -12,26 +12,29 @@ export default function LandingPage() {
                 <ThemeToggle />
             </div>
 
+            {/* Header spacer for alignment */}
+            <header className="h-16 flex-shrink-0 relative z-[1]" />
+
             {/* Main content - centered hero */}
             <main className="flex-1 flex items-center justify-center px-8 relative z-[1]">
-                <div className="text-center max-w-[1000px]">
+                <div className="text-center max-w-[800px] w-full">
                     {/* Main headline */}
-                    <h1 className="mb-6 leading-tight animate-fade-in-up">
-                        <span className="block text-[clamp(2.5rem,10vw,7rem)] text-text-cream drop-shadow-[0_0_60px_rgba(245,240,232,0.1)]">Your AI</span>
-                        <span className="block text-[clamp(2.5rem,10vw,7rem)] text-accent-rust drop-shadow-[0_0_80px_var(--accent-rust-glow)]">Surgical</span>
-                        <span className="block text-[clamp(2.5rem,10vw,7rem)] text-text-cream drop-shadow-[0_0_60px_rgba(245,240,232,0.1)]">Coach</span>
+                    <h1 className="mb-5 leading-tight animate-fade-in-up">
+                        <span className="block text-[clamp(2.25rem,8vw,5.5rem)] text-text-cream drop-shadow-[0_0_60px_rgba(245,240,232,0.1)]">Your AI</span>
+                        <span className="block text-[clamp(2.25rem,8vw,5.5rem)] text-accent-rust drop-shadow-[0_0_80px_var(--accent-rust-glow)]">Surgical</span>
+                        <span className="block text-[clamp(2.25rem,8vw,5.5rem)] text-text-cream drop-shadow-[0_0_60px_rgba(245,240,232,0.1)]">Coach</span>
                     </h1>
 
                     {/* Value proposition - one line */}
-                    <p className="font-mono text-sm tracking-widest text-text-muted mb-10 uppercase animate-fade-in-up max-[768px]:text-xs max-[768px]:tracking-wider" style={{ animationDelay: '0.2s' }}>
+                    <p className="font-mono text-sm tracking-widest text-text-muted mb-8 uppercase animate-fade-in-up max-[768px]:text-xs max-[768px]:tracking-wider" style={{ animationDelay: '0.2s' }}>
                         Real-time feedback. Any language. Just a webcam.
                     </p>
 
                     {/* Primary CTA - decisive and anchored */}
-                    <div className="inline-block mb-12 animate-fade-in-up max-[768px]:mb-8" style={{ animationDelay: '0.4s' }}>
+                    <div className="inline-block mb-10 animate-fade-in-up max-[768px]:mb-8" style={{ animationDelay: '0.4s' }}>
                         <CornerBrackets size="lg" animated>
                             <button
-                                className="px-12 py-6 text-2xl font-display tracking-widest text-text-cream bg-accent-rust border-2 border-accent-rust transition-all duration-250 hover:bg-accent-rust-light hover:border-accent-rust-light hover:shadow-[0_0_30px_var(--accent-rust-glow)] hover:-translate-y-0.5 max-[768px]:px-8 max-[768px]:py-4 max-[768px]:text-lg"
+                                className="px-8 py-4 text-lg font-display tracking-widest text-text-cream bg-accent-rust border-2 border-accent-rust transition-all duration-250 hover:bg-accent-rust-light hover:border-accent-rust-light hover:shadow-[0_0_30px_var(--accent-rust-glow)] hover:-translate-y-0.5 max-[768px]:px-6 max-[768px]:py-3 max-[768px]:text-base"
                                 onClick={() => navigate('/training')}
                             >
                                 Start Practice Session
