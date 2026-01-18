@@ -202,11 +202,8 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
         }
     };
 
-    const corrections = feedbackHistory.filter((f: any) => f.type === 'correction').length;
-    const encouragements = feedbackHistory.filter((f: any) => f.type === 'encouragement').length;
-
     return (
-        <div className="min-h-screen flex flex-col bg-bg-primary">
+        <div className="h-full flex flex-col bg-bg-primary">
             {/* Header */}
             {!embedded && (
                 <header className="flex justify-between items-center px-8 py-4 border-b border-border-subtle bg-bg-secondary max-[600px]:flex-wrap max-[600px]:gap-2">
@@ -241,10 +238,10 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
             )}
 
             {/* Main content */}
-            <main className="flex-1 p-6 flex max-[1000px]:flex-col">
-                <div className="grid grid-cols-[1fr_340px] gap-6 w-full max-w-[1400px] mx-auto max-[1000px]:grid-cols-1">
+            <main className="flex-1 flex flex-col gap-6 max-[1000px]:gap-4">
+                <div className="grid grid-cols-[1fr_300px] gap-6 w-full mx-auto max-[1000px]:grid-cols-1">
                     {/* Video feed */}
-                    <div className="relative flex flex-col">
+                    <div className="relative flex flex-col bg-black/20 rounded-lg overflow-hidden border border-white/5">
                         <CornerBrackets size="xl" animated>
                             <VideoFeed
                                 ref={videoFeedRef}
@@ -255,90 +252,51 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
                         </CornerBrackets>
                     </div>
 
-                    {/* Sidebar */}
-                    <aside className="flex flex-col gap-6 max-[1000px]:flex-row max-[1000px]:flex-wrap max-[1000px]:[&>*]:flex-1 max-[1000px]:[&>*]:min-w-[200px]">
-                        {/* Current feedback */}
-                        <div className="bg-bg-secondary border border-border-subtle p-4">
-                            <h3 className="text-sm tracking-widest mb-4 pb-1 border-b border-border-subtle text-text-muted">Current Feedback</h3>
-                            <FeedbackDisplay feedback={currentFeedback} />
-                            {isSpeaking && (
-                                <div className="flex items-center gap-2 mt-2 px-1 py-0.5 bg-bg-tertiary font-mono text-xs tracking-wider text-accent-rust">
-                                    <span className="w-2 h-2 rounded-full bg-accent-rust animate-pulse" />
-                                    Speaking...
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Session stats */}
-                        <div className="bg-bg-secondary border border-border-subtle p-4">
-                            <h3 className="text-sm tracking-widest mb-4 pb-1 border-b border-border-subtle text-text-muted">Session Stats</h3>
-                            <div className="grid grid-cols-2 gap-1">
-                                <div className="flex flex-col justify-center gap-0 p-1 bg-bg-primary border border-border-subtle min-h-[50px]">
-                                    <span className="font-display text-xl tracking-wider text-text-cream leading-tight">{formatTime(sessionTime)}</span>
-                                    <span className="font-mono text-[0.55rem] tracking-wider uppercase text-text-dim">Duration</span>
-                                </div>
-                                <div className="flex flex-col justify-center gap-0 p-1 bg-bg-primary border border-border-subtle min-h-[50px]">
-                                    <span className="font-display text-xl tracking-wider text-text-cream leading-tight">{feedbackHistory.length}</span>
-                                    <span className="font-mono text-[0.55rem] tracking-wider uppercase text-text-dim">Total Feedback</span>
-                                </div>
-                                <div className="flex flex-col justify-center gap-0 p-1 bg-bg-primary border border-border-subtle min-h-[50px]">
-                                    <span className="font-display text-xl tracking-wider text-accent-rust leading-tight">{corrections}</span>
-                                    <span className="font-mono text-[0.55rem] tracking-wider uppercase text-text-dim">Corrections</span>
-                                </div>
-                                <div className="flex flex-col justify-center gap-0 p-1 bg-bg-primary border border-border-subtle min-h-[50px]">
-                                    <span className="font-display text-xl tracking-wider text-success leading-tight">{encouragements}</span>
-                                    <span className="font-mono text-[0.55rem] tracking-wider uppercase text-text-dim">Encouragements</span>
-                                </div>
+                    {/* Current Feedback */}
+                    <div className="bg-bg-secondary border border-border-subtle p-4 h-full flex flex-col">
+                        <h3 className="text-sm tracking-widest mb-4 pb-1 border-b border-border-subtle text-text-muted">Current Feedback</h3>
+                        <FeedbackDisplay feedback={currentFeedback} />
+                        {isSpeaking && (
+                            <div className="flex items-center gap-2 mt-2 px-1 py-0.5 bg-bg-tertiary font-mono text-xs tracking-wider text-accent-rust">
+                                <span className="w-2 h-2 rounded-full bg-accent-rust animate-pulse" />
+                                Speaking...
                             </div>
-                        </div>
-
-                        {/* Recent history */}
-                        <div className="bg-bg-secondary border border-border-subtle p-4 flex-1 min-h-[200px] flex flex-col max-[1000px]:min-h-[150px]">
-                            <h3 className="text-sm tracking-widest mb-4 pb-1 border-b border-border-subtle text-text-muted">Recent</h3>
-                            <div className="flex-1 overflow-y-auto flex flex-col gap-1">
-                                {feedbackHistory.slice(-5).reverse().map((item: any) => (
-                                    <div key={item.id} className={`flex gap-2 p-2 bg-bg-primary border-l-2 animate-[slideInLeft_0.3s_ease] ${item.type === 'correction' ? 'border-l-accent-rust' : item.type === 'encouragement' ? 'border-l-success' : 'border-l-border-subtle'}`}>
-                                        <span className="font-mono text-xs text-text-dim min-w-[40px]">{formatTime(item.timestamp)}</span>
-                                        <span className="font-body text-xs text-text-muted leading-snug">{item.message}</span>
-                                    </div>
-                                ))}
-                                {feedbackHistory.length === 0 && (
-                                    <div className="flex items-center justify-center h-full font-mono text-xs text-text-dim uppercase tracking-wider">
-                                        <span>No feedback yet...</span>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
+                        )}
 
                         {/* Manual trigger for demo */}
-                        <button
-                            className="mt-auto px-4 py-2 text-xs font-display tracking-wider text-text-cream bg-transparent border border-border-subtle transition-all duration-250 hover:border-accent-rust hover:text-accent-rust disabled:opacity-30 disabled:cursor-not-allowed"
-                            onClick={triggerDemoFeedback}
-                            disabled={feedbackIndex >= DEMO_FEEDBACK.length}
-                        >
-                            {backendConnected ? 'Force Feedback' : 'Simulate Feedback'}
-                        </button>
-                    </aside>
-
-                    {/* Recent history - Full Width Bottom */}
-                    <div className="history-section full-width">
-                        <h3 className="section-title">Recent Activity</h3>
-                        <div className="history-list horizontal">
-                            {feedbackHistory.slice(-5).reverse().map((item: any) => (
-                                <div key={item.id} className={`history-item ${item.type}`}>
-                                    <span className="history-time">{formatTime(item.timestamp)}</span>
-                                    <span className="history-message">{item.message}</span>
-                                </div>
-                            ))}
-                            {feedbackHistory.length === 0 && (
-                                <div className="history-empty">
-                                    <span>No feedback yet...</span>
-                                </div>
-                            )}
+                        <div className="mt-auto pt-4 flex justify-end">
+                            <button
+                                className="px-3 py-1.5 text-[0.65rem] font-display tracking-wider text-text-dim bg-transparent border border-border-subtle transition-all duration-250 hover:border-accent-rust hover:text-accent-rust disabled:opacity-30 disabled:cursor-not-allowed uppercase"
+                                onClick={triggerDemoFeedback}
+                                disabled={feedbackIndex >= DEMO_FEEDBACK.length}
+                            >
+                                {backendConnected ? 'Force Feedback' : 'Simulate Feedback'}
+                            </button>
                         </div>
+                    </div>
+                </div>
+
+                {/* Recent History - Full Width Bottom */}
+                <div className="w-full mx-auto bg-bg-secondary border border-border-subtle p-4 flex-1">
+                    <h3 className="text-sm tracking-widest mb-4 pb-1 border-b border-border-subtle text-text-muted">Recent Activity</h3>
+                    <div className="grid grid-cols-1 gap-2 overflow-y-auto max-h-[200px] pr-2">
+                        {feedbackHistory.slice().reverse().map((item: any) => (
+                            <div key={item.id} className={`grid grid-cols-[80px_1fr] gap-4 p-3 bg-bg-primary border-l-2 items-center ${item.type === 'correction' ? 'border-l-accent-rust' :
+                                item.type === 'encouragement' ? 'border-l-success' : 'border-l-border-subtle'
+                                }`}>
+                                <span className="font-mono text-xs text-text-dim">{formatTime(item.timestamp)}</span>
+                                <span className="font-body text-sm text-text-muted">{item.message}</span>
+                            </div>
+                        ))}
+                        {feedbackHistory.length === 0 && (
+                            <div className="flex items-center justify-center p-8 font-mono text-xs text-text-dim uppercase tracking-wider border border-dashed border-border-subtle">
+                                <span>No feedback recorded yet...</span>
+                            </div>
+                        )}
                     </div>
                 </div>
             </main>
         </div>
     );
 }
+

@@ -63,7 +63,7 @@ export default function TrainingSession() {
             </CornerBrackets>
           </div>
 
-          <div className="grid grid-cols-2 gap-6 mt-6">
+          <div className="grid grid-cols-2 grid-rows-[auto_auto] gap-6 mt-6">
             {/* Left: Video Panel */}
             <ExpertVideoPanel
               isAnalyzing={isAnalyzing}
@@ -75,27 +75,13 @@ export default function TrainingSession() {
               onError={setAnalysisError}
             />
 
-            {/* Right: AI Observation Log (streaming notes only) */}
+            {/* Right: Summary Panel */}
             <ExpertSummaryPanel
               isAnalyzing={isAnalyzing}
               analysisComplete={analysisComplete}
               streamingNotes={streamingNotes}
               analysisResult={analysisResult}
               error={analysisError}
-              showSummarySection={false}
-            />
-          </div>
-
-          {/* Full-width Summary Section Below - always visible */}
-          <div className="mt-6">
-            <ExpertSummaryPanel
-              isAnalyzing={isAnalyzing}
-              analysisComplete={analysisComplete}
-              streamingNotes={streamingNotes}
-              analysisResult={analysisResult}
-              error={null}
-              showSummarySection={true}
-              summaryOnly={true}
             />
           </div>
         </section>
@@ -103,7 +89,7 @@ export default function TrainingSession() {
         <div className="w-0.5 h-16 bg-gradient-to-b from-accent-rust to-transparent mx-auto opacity-30"></div>
 
         <section
-          className={`relative mt-16 transition-all duration-500 ${!analysisComplete ? 'opacity-50 pointer-events-none blur-lg' : ''
+          className={`relative mt-16 transition-all duration-500 ${!analysisComplete ? '' : '' //'opacity-50 pointer-events-none blur-lg' : ''
             }`}
         >
           <div className="[&>div]:p-2 [&>div]:text-xl [&>div]:bg-gradient-to-r [&>div]:from-[rgba(255,255,255,0.05)] [&>div]:to-transparent [data-theme='light']:[&>div]:bg-gradient-to-r [data-theme='light']:[&>div]:from-[rgba(0,0,0,0.05)] [data-theme='light']:[&>div]:to-transparent">
@@ -112,14 +98,14 @@ export default function TrainingSession() {
             </CornerBrackets>
           </div>
 
-          <div className="relative min-h-[600px] transition-all duration-500">
+          <div className="relative min-h-[400px] transition-all duration-500 mt-6">
             {!analysisComplete && (
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center bg-[rgba(10,10,15,0.9)] px-12 py-8 rounded-lg border border-accent-rust shadow-[0_0_30px_rgba(0,180,216,0.2)] text-white">
                 <span className="text-4xl mb-4">🔒</span>
                 <p>Complete Analysis Phase to Unlock</p>
               </div>
             )}
-            <div className={!analysisComplete ? 'blur-[10px] opacity-40' : ''}>
+            <div className={!analysisComplete ? 'blur-[10px] opacity-40 pointer-events-none' : ''}>
               <CoachingSession embedded={true} />
             </div>
           </div>
