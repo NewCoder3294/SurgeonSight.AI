@@ -63,7 +63,7 @@ export default function TrainingSession() {
             </CornerBrackets>
           </div>
 
-          <div className="grid grid-cols-[2fr_3fr] gap-6 mt-6">
+          <div className="grid grid-cols-2 gap-6 mt-6">
             {/* Left: Video Panel */}
             <ExpertVideoPanel
               isAnalyzing={isAnalyzing}

@@ -17,25 +17,27 @@ interface ExpertVideoPanelProps {
  * Overshoot Prompt - Strict format for Part 1
  * 
  * Outputs ONLY:
- * - LOG: <one sentence, <=16 words>
- * - MOMENT: <optional time> <one sentence, 8-18 words>
+ * - LOG: <one sentence, 12-20 words, includes instrument + action + teaching insight>
+ * - MOMENT: <one sentence, 12-20 words, highlights "aha" technique or error-prevention>
  * 
- * Throttling: Overshoot results are buffered in queue and flushed to UI every 3500ms.
- * On each flush, the best candidate is selected (longest unique or latest non-empty).
- * See flushResults() function where THROTTLE_INTERVAL_MS is set (currently 3500ms).
+ * Each observation must include: technique + instrument + action + why it matters.
+ * Throttling: Notes are accepted only if at least 3 seconds have passed since last accepted note.
+ * See flushResults() function and lastAcceptedTimeRef for throttling logic.
  */
 const ANALYSIS_PROMPT = `You are an expert surgical instructor observing a procedure video.
 STRICT RULES:
 - Output at most ONE item every 3–5 seconds.
-- Each item must be ONE sentence, <=16 words.
-- Use surgical/technical terms (grip, retraction, exposure, force modulation, angle control, wrist stability, tissue handling).
-- Do NOT restate previous observations. Output only when a new technique point appears.
-- Do NOT invent timestamps. Only include time if it is clearly known; otherwise omit.
+- Each item must be ONE sentence, 12–20 words.
+- MUST include: technique + instrument/tool + action + why it matters.
+  Example: "Surgeon uses scissor grip with forceps to control tissue tension, preventing accidental tearing during dissection."
+- Use specific surgical terms: instrument names (forceps, scalpel, retractor, scissors), techniques (pencil grip, palm grip, two-handed), actions (retraction, dissection, cauterization, suturing).
+- Do NOT restate previous observations. Output only when a new, distinct technique point appears.
+- Do NOT include timestamps in output text (they will be attached automatically).
 - No markdown, no bullets, no numbering.
 
 FORMAT:
-LOG: <one sentence, <=16 words>
-MOMENT: <optional time> <one sentence, 8–18 words>
+LOG: <one sentence, 12–20 words, technique + instrument + action + teaching insight>
+MOMENT: <one sentence, 12–20 words, highlights "aha" technique, error-prevention, or critical moment>
 
 Begin.`;
 
@@ -54,18 +56,20 @@ export default function ExpertVideoPanel({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const visionInstanceRef = useRef<ReturnType<typeof createOvershootVision> | null>(null);
-  // Store notes with optional timestamps (attached from video.currentTime in code, not from model)
-  const notesAccumulatorRef = useRef<Array<{ text: string; timestamp?: number }>>([]);
+  // Store notes with timestamps (attached from video.currentTime in code, not from model)
+  // Format: { text: string, timestamp: number, type: 'LOG' | 'MOMENT' }
+  const notesAccumulatorRef = useRef<Array<{ text: string; timestamp: number; type: 'LOG' | 'MOMENT' }>>([]);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const videoEndedCleanupRef = useRef<(() => void) | null>(null);
   
   // Throttling: Queue incoming Overshoot messages and flush to UI on interval
-  // THROTTLE_INTERVAL_MS: Controls how often we flush (currently 3500ms = ~3.5 seconds)
-  // To tune: Change this value to adjust pacing (lower = faster updates, higher = slower)
-  const THROTTLE_INTERVAL_MS = 3500;
+  // MIN_TIME_BETWEEN_NOTES_MS: Minimum time (3-5 seconds) between accepting new notes
+  const MIN_TIME_BETWEEN_NOTES_MS = 3000; // 3 seconds minimum
+  const FLUSH_INTERVAL_MS = 1000; // Check queue every 1 second, but only accept if enough time passed
   const messageQueueRef = useRef<string[]>([]);
   const flushIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const acceptedNotesRef = useRef<string[]>([]); // Track last ~15 accepted notes for dedupe
+  const lastAcceptedTimeRef = useRef<number>(0); // Track when last note was accepted for throttling
 
   // Cleanup video URL on unmount
   useEffect(() => {
@@ -133,9 +137,9 @@ export default function ExpertVideoPanel({
         },
         onResult: (text: string) => {
           // Queue incoming messages for throttled processing
-          // Parse to extract LOG items (ignore MOMENT items in streaming, they'll be extracted on completion)
+          // Parse to extract both LOG and MOMENT items
           const parsed = parseOvershootOutput(text);
-          messageQueueRef.current.push(...parsed.logs);
+          messageQueueRef.current.push(...parsed.logs, ...parsed.moments);
         },
         onError: (err: Error) => {
           console.error('Overshoot error:', err);
@@ -147,11 +151,11 @@ export default function ExpertVideoPanel({
 
       visionInstanceRef.current = vision;
       
-      // Initialize flush interval: flush queue and pick best candidate every THROTTLE_INTERVAL_MS
-      // See THROTTLE_INTERVAL_MS constant above to tune the pacing
+      // Initialize flush interval: check queue every FLUSH_INTERVAL_MS
+      // Notes are only accepted if MIN_TIME_BETWEEN_NOTES_MS has passed since last acceptance
       flushIntervalRef.current = setInterval(() => {
         flushResults();
-      }, THROTTLE_INTERVAL_MS);
+      }, FLUSH_INTERVAL_MS);
       
       await vision.start();
 
@@ -193,19 +197,27 @@ export default function ExpertVideoPanel({
    * Flush queued messages: pick the best candidate and add to accumulator if it passes filters
    * 
    * Strategy:
-   * 1. Filter queue: remove empty/invalid messages
-   * 2. Dedupe: remove exact duplicates and near-duplicates (Jaccard >= 0.75)
-   * 3. Template dedupe: require at least 2 new content tokens vs last accepted
-   * 4. Pick best candidate: longest unique message (most informative)
-   * 5. If candidate passes, append to accumulator and update UI
-   * 6. Clear queue for next interval
+   * 1. Check throttling: Only accept if MIN_TIME_BETWEEN_NOTES_MS has passed since last acceptance
+   * 2. Filter queue: remove empty/invalid messages
+   * 3. Dedupe: remove exact duplicates and near-duplicates (Jaccard >= 0.75)
+   * 4. Template dedupe: require at least 2 new content tokens vs last accepted
+   * 5. Pick best candidate: longest unique message (most informative)
+   * 6. If candidate passes, append to accumulator with code-attached timestamp and update UI
    * 
-   * Throttle interval is controlled by THROTTLE_INTERVAL_MS constant (currently 3500ms)
+   * Throttling is enforced by MIN_TIME_BETWEEN_NOTES_MS (currently 3000ms = 3 seconds)
    */
   const flushResults = () => {
     if (messageQueueRef.current.length === 0) return;
     
-    // Filter: keep only non-empty LOG items
+    // Throttling: Only accept new note if enough time has passed
+    const now = Date.now();
+    const timeSinceLastAccepted = now - lastAcceptedTimeRef.current;
+    if (timeSinceLastAccepted < MIN_TIME_BETWEEN_NOTES_MS) {
+      // Not enough time has passed, skip this flush
+      return;
+    }
+    
+    // Filter: keep only non-empty messages
     const candidates = messageQueueRef.current
       .map(msg => msg.trim())
       .filter(msg => msg.length > 0);
@@ -220,10 +232,16 @@ export default function ExpertVideoPanel({
     const sortedCandidates = [...candidates].sort((a, b) => b.length - a.length);
     
     let selectedCandidate: string | null = null;
+    let selectedType: 'LOG' | 'MOMENT' = 'LOG';
     
     for (const candidate of sortedCandidates) {
+      // Determine type (LOG vs MOMENT) - though we parse both, track type for future use
+      const isMoment = candidate.toLowerCase().includes('moment:') || 
+                       acceptedNotesRef.current.length % 5 === 0; // Rough heuristic: every 5th note might be moment
+      const cleanCandidate = candidate.replace(/^(LOG|MOMENT):\s*/i, '').trim();
+      
       // Check exact duplicate against accumulator
-      const normalizedCandidate = candidate.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+      const normalizedCandidate = cleanCandidate.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
       const isExactDuplicate = notesAccumulatorRef.current.some(note => {
         const normalizedNote = note.text.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
         return normalizedNote === normalizedCandidate;
@@ -232,7 +250,7 @@ export default function ExpertVideoPanel({
       if (isExactDuplicate) continue;
       
       // Check near-duplicate using Jaccard similarity (>= 0.75 threshold)
-      if (isNearDuplicate(candidate, acceptedNotesRef.current, 15)) {
+      if (isNearDuplicate(cleanCandidate, acceptedNotesRef.current, 15)) {
         continue;
       }
       
@@ -240,12 +258,13 @@ export default function ExpertVideoPanel({
       const lastAccepted = acceptedNotesRef.current.length > 0 
         ? acceptedNotesRef.current[acceptedNotesRef.current.length - 1] 
         : null;
-      if (!hasNewContentTokens(candidate, lastAccepted)) {
+      if (!hasNewContentTokens(cleanCandidate, lastAccepted)) {
         continue;
       }
       
       // Candidate passed all filters
-      selectedCandidate = candidate;
+      selectedCandidate = cleanCandidate;
+      selectedType = isMoment ? 'MOMENT' : 'LOG';
       break;
     }
     
@@ -253,13 +272,14 @@ export default function ExpertVideoPanel({
     if (selectedCandidate) {
       // Capture video.currentTime when logging (code-attached timestamp, trusted)
       const videoEl = videoRef.current;
-      const timestamp = videoEl && !isNaN(videoEl.currentTime) && isFinite(videoEl.currentTime) 
+      const timestamp = (videoEl && !isNaN(videoEl.currentTime) && isFinite(videoEl.currentTime)) 
         ? videoEl.currentTime 
-        : undefined;
+        : 0; // Default to 0 if video not ready
       
-      const noteWithTimestamp: { text: string; timestamp?: number } = {
+      const noteWithTimestamp: { text: string; timestamp: number; type: 'LOG' | 'MOMENT' } = {
         text: selectedCandidate,
         timestamp,
+        type: selectedType,
       };
       
       notesAccumulatorRef.current.push(noteWithTimestamp);
@@ -269,6 +289,9 @@ export default function ExpertVideoPanel({
       if (acceptedNotesRef.current.length > 15) {
         acceptedNotesRef.current.shift();
       }
+      
+      // Update throttling timestamp
+      lastAcceptedTimeRef.current = now;
       
       // Update parent with current state (extract text for UI)
       const noteTexts = notesAccumulatorRef.current.map(n => n.text);
@@ -327,7 +350,8 @@ export default function ExpertVideoPanel({
     const summary = extractSummary(dedupedNoteTexts);
     const keyConcepts = extractKeyConcepts(dedupedNoteTexts);
     
-    // Notable moments: use notes with code-attached timestamps (not model-provided)
+    // Notable moments: use notes with code-attached timestamps and type (not model-provided)
+    // Notes format: { text: string, timestamp: number, type: 'LOG' | 'MOMENT' }
     const notableMoments = extractNotableMoments(notesAccumulatorRef.current);
 
     // Send structured results to parent
@@ -369,6 +393,7 @@ export default function ExpertVideoPanel({
     notesAccumulatorRef.current = [];
     messageQueueRef.current = [];
     acceptedNotesRef.current = [];
+    lastAcceptedTimeRef.current = 0;
   };
 
   return (
@@ -382,9 +407,9 @@ export default function ExpertVideoPanel({
           </div>
 
           {videoFile && videoUrl ? (
-            <div className="flex-1 flex flex-col min-h-[400px] max-h-[600px]">
+            <div className="flex-1 flex flex-col min-h-[400px]">
               {/* Video Preview */}
-              <div className="relative flex-1 bg-black min-h-0">
+              <div className="relative flex-1 bg-black">
                 <video
                   ref={videoRef}
                   src={videoUrl}

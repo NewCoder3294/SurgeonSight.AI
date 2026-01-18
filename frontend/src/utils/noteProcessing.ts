@@ -235,11 +235,12 @@ export function extractSummary(notes: string[]): string {
  * - 4-8 items, each ≤8 words, verbs allowed
  * - Deduplicate by theme (only one "wrist stability" concept)
  * - Should read like actionable reminders, not narration
+ * - Avoid duplicates like "Control control"
  */
 export function extractKeyConcepts(notes: string[]): string[] {
   if (notes.length === 0) return [];
 
-  // Parse all notes to get LOG items
+  // Parse all notes to get LOG items (ignore MOMENT items for key concepts)
   const allLogs: string[] = [];
   for (const note of notes) {
     const parsed = parseOvershootOutput(note);
@@ -248,34 +249,55 @@ export function extractKeyConcepts(notes: string[]): string[] {
   
   if (allLogs.length === 0) return [];
   
-  // Extract actionable concepts by theme (deduplicate by theme keyword)
-  const themeMap: Record<string, string> = {};
-  const actionVerbs = ['maintain', 'avoid', 'keep', 'reduce', 'stabilize', 'control', 'ensure', 
-                       'focus', 'apply', 'adjust', 'modulate', 'handle', 'minimize', 'preserve'];
+  // Extract actionable concepts by extracting unique themes and actions
+  const concepts: string[] = [];
+  const seenThemes = new Set<string>();
+  const seenNormalized = new Set<string>();
   
-  const themeKeywords: Record<string, string> = {
-    'wrist stability': 'wrist',
-    'wrist': 'wrist',
-    'grip': 'grip',
-    'handling': 'grip',
-    'retraction': 'retraction',
-    'exposure': 'exposure',
-    'force': 'force',
-    'modulation': 'force',
-    'pressure': 'force',
-    'angle': 'angle',
-    'control': 'control',
-    'positioning': 'positioning',
+  // Theme keywords (prioritized themes)
+  const themeMap: Record<string, string> = {
+    'wrist': 'wrist stability',
+    'grip': 'instrument grip',
+    'forceps': 'instrument control',
+    'scalpel': 'instrument control',
+    'retractor': 'retraction technique',
+    'retraction': 'retraction technique',
+    'exposure': 'tissue exposure',
+    'force': 'force modulation',
+    'pressure': 'force modulation',
+    'modulation': 'force modulation',
+    'angle': 'approach angle',
+    'dissection': 'tissue dissection',
+    'tissue': 'tissue handling',
+    'handling': 'tissue handling',
+    'cautery': 'hemostasis',
+    'suturing': 'wound closure',
   };
   
+  // Action verbs for actionable concepts
+  const actionVerbs = ['maintain', 'avoid', 'keep', 'reduce', 'stabilize', 'control', 'ensure', 
+                       'focus', 'apply', 'adjust', 'modulate', 'handle', 'minimize', 'preserve',
+                       'use', 'position', 'direct', 'prevent'];
+  
+  // First pass: Extract theme-based concepts
   for (const log of allLogs) {
+    if (concepts.length >= 8) break;
+    
     const lower = log.toLowerCase();
     const words = log.split(/\s+/);
     
-    // Find action verb + theme keyword combination
-    let actionVerb: string | null = null;
-    let themeKeyword: string | null = null;
+    // Find theme keyword
+    let themeKey: string | null = null;
+    for (const [keyword, theme] of Object.entries(themeMap)) {
+      if (lower.includes(keyword) && !seenThemes.has(theme)) {
+        themeKey = theme;
+        seenThemes.add(theme);
+        break;
+      }
+    }
     
+    // Find action verb
+    let actionVerb: string | null = null;
     for (const verb of actionVerbs) {
       if (lower.includes(verb)) {
         actionVerb = verb;
@@ -283,134 +305,178 @@ export function extractKeyConcepts(notes: string[]): string[] {
       }
     }
     
-    for (const [keyword, theme] of Object.entries(themeKeywords)) {
-      if (lower.includes(keyword)) {
-        themeKeyword = theme;
-        break;
-      }
-    }
-    
-    if (actionVerb && themeKeyword) {
-      // Generate actionable reminder: "Maintain wrist stability" not "Maintains steady wrist"
-      const concept = `${actionVerb.charAt(0).toUpperCase() + actionVerb.slice(1)} ${themeKeyword}${themeKeyword === 'wrist' ? ' stability' : themeKeyword === 'grip' ? ' control' : ''}`.trim();
+    // Build concept from action + theme
+    if (themeKey && actionVerb) {
+      // Build actionable phrase: "Maintain wrist stability" not "Control control"
+      const conceptWords: string[] = [];
       
-      // Deduplicate by theme: only keep one concept per theme
-      if (!themeMap[themeKeyword] || concept.length < themeMap[themeKeyword].length) {
-        // Keep shorter, more concise version
-        if (concept.split(/\s+/).length <= 8) {
-          themeMap[themeKeyword] = concept;
-        }
-      }
-    } else if (actionVerb && !themeKeyword && Object.keys(themeMap).length < 8) {
-      // Extract simple actionable phrase (first 8 words)
-      const concept = words.slice(0, 8).join(' ').trim();
+      // Add action verb (capitalized)
+      conceptWords.push(actionVerb.charAt(0).toUpperCase() + actionVerb.slice(1));
       
-      // Simple dedupe by similarity (theme deduplication)
-      let isDuplicate = false;
-      for (const existing of Object.values(themeMap)) {
-        if (similarity(tokenize(concept), tokenize(existing)) >= 0.75) {
-          isDuplicate = true;
-          break;
+      // Add theme (avoid repeating the verb)
+      const themeWords = themeKey.split(' ');
+      for (const word of themeWords) {
+        if (word.toLowerCase() !== actionVerb.toLowerCase()) {
+          conceptWords.push(word);
         }
       }
       
-      if (!isDuplicate && concept.length > 5 && concept.split(/\s+/).length <= 8) {
-        themeMap[`general_${Object.keys(themeMap).length}`] = concept;
+      const concept = conceptWords.join(' ').trim();
+      
+      // Hard enforce ≤8 words
+      const conceptWordsList = concept.split(/\s+/);
+      if (conceptWordsList.length <= 8) {
+        const normalized = normalize(concept);
+        if (!seenNormalized.has(normalized)) {
+          concepts.push(concept);
+          seenNormalized.add(normalized);
+        }
       }
     }
   }
   
-  const concepts = Object.values(themeMap).filter(c => c.split(/\s+/).length <= 8);
-  
-  // Ensure 4-8 concepts
-  if (concepts.length < 4 && allLogs.length > 0) {
-    // Fallback: extract simple actionable phrases
-    const seenNormalized = new Set<string>();
+  // Second pass: Extract additional actionable phrases if we have < 4 concepts
+  if (concepts.length < 4) {
     for (const log of allLogs) {
       if (concepts.length >= 8) break;
       
-      const words = log.split(/\s+/).slice(0, 8);
-      const concept = words.join(' ').trim();
-      const normalized = normalize(concept);
+      const words = log.split(/\s+/);
       
-      // Check theme dedupe
-      let isThemeDuplicate = false;
-      for (const existing of concepts) {
-        if (similarity(tokenize(concept), tokenize(existing)) >= 0.75) {
-          isThemeDuplicate = true;
+      // Extract first actionable phrase (up to 8 words)
+      // Start from first verb if found
+      let startIdx = 0;
+      for (let i = 0; i < words.length; i++) {
+        const word = words[i].toLowerCase().replace(/[^\w]/g, '');
+        if (actionVerbs.includes(word)) {
+          startIdx = i;
           break;
         }
       }
       
-      if (!isThemeDuplicate && !seenNormalized.has(normalized) && concept.length > 5) {
-        concepts.push(concept);
-        seenNormalized.add(normalized);
+      const phraseWords = words.slice(startIdx, startIdx + 8);
+      const concept = phraseWords.join(' ').trim();
+      
+      // Skip if too short or empty
+      if (concept.length < 5) continue;
+      
+      // Hard enforce ≤8 words
+      const conceptWordsList = concept.split(/\s+/);
+      if (conceptWordsList.length <= 8) {
+        const normalized = normalize(concept);
+        
+        // Check for duplicates (exact and near-duplicate)
+        let isDuplicate = false;
+        for (const existing of concepts) {
+          if (normalized === normalize(existing) || 
+              similarity(tokenize(concept), tokenize(existing)) >= 0.75) {
+            isDuplicate = true;
+            break;
+          }
+        }
+        
+        // Check for theme duplicates
+        let isThemeDuplicate = false;
+        for (const theme of seenThemes) {
+          if (concept.toLowerCase().includes(theme.toLowerCase()) || 
+              theme.toLowerCase().includes(concept.toLowerCase())) {
+            isThemeDuplicate = true;
+            break;
+          }
+        }
+        
+        if (!isDuplicate && !isThemeDuplicate && !seenNormalized.has(normalized)) {
+          concepts.push(concept);
+          seenNormalized.add(normalized);
+        }
       }
     }
   }
   
-  return concepts.slice(0, 8);
+  // Ensure 4-8 concepts
+  return concepts.slice(0, 8).filter(c => c.split(/\s+/).length <= 8);
 }
 
 /**
- * Extract 0-3 Notable Moments from notes with timestamps.
+ * Extract 3-6 Notable Moments from notes with timestamps.
  * 
  * Requirements:
- * - Max 0-3 items
+ * - 3-6 items
  * - Timestamps come from video.currentTime (attached in code, not from model)
- * - Format: "[time] – <insight>" if timestamp exists, otherwise just insight
+ * - Format: "mm:ss – <insight>" if timestamp exists
  * - Do NOT trust model-provided timestamps (they may be hallucinated)
+ * - Prefer MOMENT type notes, but include LOG notes if interesting
  * 
- * Notes format: Array of objects { text: string, timestamp?: number } or strings
+ * Notes format: Array of objects { text: string, timestamp: number, type: 'LOG' | 'MOMENT' } or strings
  */
-export function extractNotableMoments(notes: (string | { text: string; timestamp?: number })[]): string[] {
+export function extractNotableMoments(notes: (string | { text: string; timestamp?: number; type?: 'LOG' | 'MOMENT' })[]): string[] {
   if (notes.length === 0) return [];
   
-  // Extract notable moments: prefer items with timestamps attached in code
-  const moments: string[] = [];
+  // Extract notable moments: prefer MOMENT type with code-attached timestamps
+  const moments: Array<{ text: string; timestamp: number; priority: number }> = [];
   const seen = new Set<string>();
   
-  // Find notes with timestamps (attached by code)
-  const timestampedNotes: Array<{ text: string; timestamp: number }> = [];
-  const nonTimestampedNotes: string[] = [];
-  
+  // Process notes: prioritize MOMENT type, then LOG type with timestamps
   for (const note of notes) {
-    if (typeof note === 'object' && note.timestamp !== undefined) {
-      timestampedNotes.push({ text: note.text, timestamp: note.timestamp });
+    let text: string;
+    let timestamp: number | undefined;
+    let type: 'LOG' | 'MOMENT' = 'LOG';
+    
+    if (typeof note === 'object') {
+      text = note.text;
+      timestamp = note.timestamp;
+      type = note.type || 'LOG';
     } else {
-      const text = typeof note === 'string' ? note : note.text;
-      // Parse MOMENT items, but ignore model-provided timestamps
+      text = note;
+      // Try to parse MOMENT from text
       const parsed = parseOvershootOutput(text);
-      nonTimestampedNotes.push(...parsed.moments);
+      if (parsed.moments.length > 0) {
+        text = parsed.moments[0];
+        type = 'MOMENT';
+      }
     }
-  }
-  
-  // Format timestamped moments first (code-attached timestamps are trusted)
-  for (const { text, timestamp } of timestampedNotes) {
-    const formattedMoment = formatTimestamp(timestamp) + ' – ' + text.trim();
+    
+    // Remove any model-provided timestamps from text
+    text = text.replace(/^\d+[:\d]*[sm]?\s*[-–]?\s*/i, '').trim();
+    
+    if (!text) continue;
+    
     const normalized = normalize(text);
+    if (seen.has(normalized)) continue;
     
-    if (!seen.has(normalized) && moments.length < 3) {
-      moments.push(formattedMoment);
+    // Only include if we have a valid timestamp (code-attached)
+    if (timestamp !== undefined && timestamp > 0) {
+      // Priority: MOMENT type = 1, LOG type = 2
+      const priority = type === 'MOMENT' ? 1 : 2;
+      moments.push({ text, timestamp, priority });
       seen.add(normalized);
     }
   }
   
-  // Add non-timestamped moments if we have space (no timestamp shown)
-  for (const moment of nonTimestampedNotes) {
-    if (moments.length >= 3) break;
-    
-    // Remove any model-provided timestamps from the text
-    const cleanMoment = moment.replace(/^\d+[:\d]*[sm]?\s*[-–]?\s*/i, '').trim();
-    const normalized = normalize(cleanMoment);
-    
-    if (cleanMoment && !seen.has(normalized)) {
-      moments.push(cleanMoment); // No timestamp prefix
-      seen.add(normalized);
+  // Sort by priority (MOMENT first), then by timestamp
+  moments.sort((a, b) => {
+    if (a.priority !== b.priority) return a.priority - b.priority;
+    return a.timestamp - b.timestamp;
+  });
+  
+  // Format and return 3-6 moments with timestamps
+  const formattedMoments = moments
+    .slice(0, 6) // Max 6 moments
+    .map(({ text, timestamp }) => {
+      const timeStr = formatTimestamp(timestamp);
+      return `${timeStr} – ${text}`;
+    });
+  
+  // Ensure at least 3 moments if we have enough notes
+  if (formattedMoments.length < 3 && moments.length >= 3) {
+    // Include more LOG notes if needed
+    const remaining = moments.slice(formattedMoments.length, 3);
+    for (const { text, timestamp } of remaining) {
+      const timeStr = formatTimestamp(timestamp);
+      formattedMoments.push(`${timeStr} – ${text}`);
     }
   }
   
-  return moments.slice(0, 3);
+  return formattedMoments.slice(0, 6);
 }
 
 /**
