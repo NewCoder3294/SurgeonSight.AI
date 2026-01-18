@@ -5,9 +5,11 @@ import FeedbackDisplay from './FeedbackDisplay';
 import VideoFeed from './VideoFeed';
 import ThemeToggle from './ThemeToggle';
 import Hand3DVisualization from './Hand3DVisualization';
+import VoiceFeedbackDisplay from './VoiceFeedbackDisplay';
+import SessionSummaryModal from './SessionSummaryModal';
 import { useWebSocket, useVoiceFeedback } from '../hooks/useSession';
 import { useMockHandDetection } from '../hooks/useHandDetection';
-import { useLiveKitVoice } from '../hooks/useLiveKitVoice';
+import { useVoiceCoach } from '../hooks/useVoiceCoach';
 import { startSession, endSession } from '../utils/api';
 import { createMetricsWindow, addMetric, computeFrameDifference } from '../utils/reproMetrics';
 import type { MotionMetrics } from '../utils/reproMetrics';
@@ -49,13 +51,14 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
     const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
     const [currentMetrics, setCurrentMetrics] = useState<SurgicalMetrics | null>(null);
     const [detectedHands, setDetectedHands] = useState<HandData[]>([]);
+    const [showSummary, setShowSummary] = useState(false);
+    const [sessionSummary, setSessionSummary] = useState<any>(null);
 
     // Demo mode state
     const [feedbackIndex, setFeedbackIndex] = useState(0);
 
     const timerRef = useRef<any>(null);
     const feedbackTimeoutRef = useRef<any>(null);
-    const lastCoachingTimeRef = useRef<number>(0); // Track last coaching message time
 
     // Motion metrics state
     const metricsWindowRef = useRef(createMetricsWindow(5, 30));
@@ -65,19 +68,11 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
     const frameIntervalRef = useRef<any>(null);
     const lastFrameTimeRef = useRef<number>(0);
 
-    // Voice feedback hook (legacy)
+    // Voice feedback hook (legacy - keep for fallback)
     const { playFeedback, speakWithWebSpeech, isSpeaking } = useVoiceFeedback();
 
-    // LiveKit voice feedback with metrics narration
-    const {
-        speakMetrics,
-        speakLoud, // NEW: for urgent coaching
-        voiceEnabled,
-        toggleVoice,
-        isSpeaking: isVoiceSpeaking
-    } = useLiveKitVoice({
-        speakInterval: 5000 // Speak metrics every 5 seconds
-    });
+    // NEW: Mind-blowing voice coach with typing animation
+    const voiceCoach = useVoiceCoach();
 
     // Handle incoming feedback from backend
     const handleBackendFeedback = useCallback((data: any) => {
@@ -131,74 +126,24 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                 setIsAnalyzing(false);
                 setTimeout(() => setIsAnalyzing(true), 200);
 
-                // Compare against expert baseline if available
-                if (expertMetrics && voiceEnabled) {
-                    const now = Date.now();
-                    const timeSinceLastCoaching = now - lastCoachingTimeRef.current;
-
-                    // Only coach every 4 seconds to avoid overwhelming
-                    if (timeSinceLastCoaching > 4000) {
-                        // Check angle deviation
-                        const angleDiff = Math.abs(metrics.scalpelAngle - expertMetrics.angleTarget);
-                        const tolerance = expertMetrics.angleTolerance || 15;
-
-                        if (angleDiff > tolerance * 2) {
-                            // Major deviation - LOUD urgent coaching
-                            const direction = metrics.scalpelAngle > expertMetrics.angleTarget ? 'lower' : 'raise';
-                            const message = `Adjust angle! You're at ${Math.round(metrics.scalpelAngle)} degrees. Target is ${expertMetrics.angleTarget} degrees. ${direction === 'lower' ? 'Lower your wrist.' : 'Raise your wrist.'}`;
-                            speakLoud(message);
-                            lastCoachingTimeRef.current = now;
-
-                            // Show as feedback
-                            setCurrentFeedback({
-                                status: 'WARNING',
-                                message,
-                                timestamp: sessionTime,
-                                id: now
-                            });
-                        } else if (metrics.gripType !== 'unknown' && expertMetrics.expectedGripType !== 'unknown' &&
-                            metrics.gripType !== expertMetrics.expectedGripType) {
-                            // Wrong grip type
-                            const message = `Switch to ${expertMetrics.expectedGripType} grip! Expert uses ${expertMetrics.expectedGripType} grip for precision.`;
-                            speakLoud(message);
-                            lastCoachingTimeRef.current = now;
-
-                            setCurrentFeedback({
-                                status: 'WARNING',
-                                message,
-                                timestamp: sessionTime,
-                                id: now
-                            });
-                        } else if (metrics.steadiness < (expertMetrics.steadinessTarget - 20)) {
-                            // Low steadiness
-                            const message = `Stabilize your hand! Steadiness at ${Math.round(metrics.steadiness)} percent. Target is ${expertMetrics.steadinessTarget} percent or higher.`;
-                            speakLoud(message);
-                            lastCoachingTimeRef.current = now;
-
-                            setCurrentFeedback({
-                                status: 'WARNING',
-                                message,
-                                timestamp: sessionTime,
-                                id: now
-                            });
-                        } else if (angleDiff <= tolerance && metrics.steadiness >= expertMetrics.steadinessTarget) {
-                            // On track - occasional encouragement
-                            if (timeSinceLastCoaching > 15000) {
-                                speakLoud('Good technique! Maintain this angle and steadiness.');
-                                lastCoachingTimeRef.current = now;
-
-                                setCurrentFeedback({
-                                    status: 'ON_TRACK',
-                                    message: 'Good technique! Maintain this angle and steadiness.',
-                                    timestamp: sessionTime,
-                                    id: now
-                                });
-                            }
+                // Use the new voice coach for intelligent coaching with expert comparison
+                if (expertMetrics && voiceCoach.voiceEnabled) {
+                    voiceCoach.coachOnMetrics(
+                        {
+                            scalpelAngle: metrics.scalpelAngle,
+                            steadiness: metrics.steadiness,
+                            gripType: metrics.gripType
+                        },
+                        {
+                            angleTarget: expertMetrics.angleTarget,
+                            angleTolerance: expertMetrics.angleTolerance || 15,
+                            steadinessTarget: expertMetrics.steadinessTarget || 70,
+                            expectedGripType: expertMetrics.expectedGripType || 'unknown'
                         }
-                    }
-                } else if (voiceEnabled) {
-                    // No expert baseline - just speak metrics periodically
-                    speakMetrics(metrics);
+                    );
+                } else if (voiceCoach.voiceEnabled) {
+                    // No expert baseline - speak basic metrics occasionally
+                    voiceCoach.speak(`Angle ${Math.round(metrics.scalpelAngle)} degrees, steadiness ${Math.round(metrics.steadiness)} percent`);
                 }
             }
         }
@@ -434,13 +379,15 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
             }
         }
 
-        // Just show an alert or console log for now, as user requested removing summary
-        console.log("Session Ended", { duration: sessionTime, events: feedbackHistory });
+        // Generate and speak the summary
+        const summary = voiceCoach.speakSummary();
+        setSessionSummary({
+            ...summary,
+            duration: sessionTime
+        });
+        setShowSummary(true);
 
-        // If embedded, maybe notify parent? For now, we'll just stop here.
-        if (!embedded) {
-            navigate('/'); // Go back to landing if standalone
-        }
+        console.log("Session Ended", { duration: sessionTime, events: feedbackHistory, summary });
     };
 
     return (
@@ -543,12 +490,6 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                         <div className="bg-bg-secondary border border-border-subtle p-4">
                             <div className="flex justify-between items-center mb-3 pb-1 border-b border-border-subtle">
                                 <h3 className="text-xs tracking-widest text-text-muted uppercase">3D Hand View</h3>
-                                <button
-                                    onClick={toggleVoice}
-                                    className={`px-2 py-1 font-mono text-[0.6rem] tracking-wider uppercase border transition-all ${voiceEnabled ? 'bg-success/20 border-success text-success' : 'bg-bg-tertiary border-border-subtle text-text-dim'}`}
-                                >
-                                    {voiceEnabled ? '🔊 Voice ON' : '🔇 Voice OFF'}
-                                </button>
                             </div>
                             <Hand3DVisualization
                                 metrics={currentMetrics}
@@ -557,20 +498,32 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                             />
                         </div>
 
-                        {/* Live Feedback */}
-                        <div className="bg-bg-secondary border border-border-subtle p-4 flex-1 flex flex-col min-h-[120px]">
-                            <h3 className="text-xs tracking-widest mb-3 pb-1 border-b border-border-subtle text-text-muted uppercase">Live Feedback</h3>
-                            <FeedbackDisplay feedback={currentFeedback} />
-                            {(isSpeaking || isVoiceSpeaking) && (
-                                <div className="flex items-center gap-2 mt-3 px-2 py-1 bg-bg-tertiary font-mono text-xs tracking-wider text-accent-rust">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-accent-rust animate-pulse" />
-                                    Speaking...
-                                </div>
-                            )}
-                        </div>
+                        {/* NEW: Premium Voice Feedback Display with typing animation */}
+                        <VoiceFeedbackDisplay
+                            isSpeaking={voiceCoach.isSpeaking}
+                            displayedText={voiceCoach.displayedText}
+                            currentMessage={voiceCoach.currentMessage}
+                            messageHistory={voiceCoach.messageHistory}
+                            stats={voiceCoach.stats}
+                            voiceEnabled={voiceCoach.voiceEnabled}
+                            onToggleVoice={voiceCoach.toggleVoice}
+                            onTestVoice={voiceCoach.testVoice}
+                        />
                     </div>
                 </div>
             </main>
+
+            {/* Session Summary Modal */}
+            <SessionSummaryModal
+                isOpen={showSummary}
+                onClose={() => setShowSummary(false)}
+                summary={sessionSummary}
+                onPlayAgain={() => {
+                    setShowSummary(false);
+                    voiceCoach.resetStats();
+                    setSessionTime(0);
+                }}
+            />
         </div>
     );
 }
