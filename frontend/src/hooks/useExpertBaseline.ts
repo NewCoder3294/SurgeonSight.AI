@@ -109,19 +109,24 @@ export function useExpertBaseline() {
     const storeBaseline = useCallback((
         procedureName: string,
         notes: string[],
-        analysisResult?: { summary: string; keyConcepts: string[]; notableMoments: string[] }
+        analysisResult?: {
+            summary: string;
+            keyConcepts: string[];
+            notableMoments: Array<{ text: string; timestampMs: number; timestampSource?: 'code' | 'heuristic' }>;
+            lowSignal?: boolean;
+            scaffold?: string[];
+        }
     ) => {
         // Parse notes to extract metrics
         const parsedMetrics = parseNotesToMetrics(notes);
 
-        // Parse notable moments
+        // Parse notable moments from new structure
         const moments: Array<{ time: number; note: string }> = [];
         if (analysisResult?.notableMoments) {
-            analysisResult.notableMoments.forEach((moment, index) => {
-                // Try to extract time from moment text
-                const timeMatch = moment.match(/\[?([\d.]+)s?\]?/);
-                const time = timeMatch ? parseFloat(timeMatch[1]) : index * 10;
-                moments.push({ time, note: moment });
+            analysisResult.notableMoments.forEach((moment) => {
+                // Convert timestampMs to seconds
+                const time = moment.timestampMs / 1000;
+                moments.push({ time, note: moment.text });
             });
         }
 

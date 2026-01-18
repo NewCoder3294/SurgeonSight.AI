@@ -132,18 +132,39 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                         {
                             scalpelAngle: metrics.scalpelAngle,
                             steadiness: metrics.steadiness,
-                            gripType: metrics.gripType
+                            gripType: metrics.gripType,
+                            speed: metrics.speed,
+                            handDetected: true // Hand is detected since we're in this callback
                         },
                         {
                             angleTarget: expertMetrics.angleTarget,
                             angleTolerance: expertMetrics.angleTolerance || 15,
                             steadinessTarget: expertMetrics.steadinessTarget || 70,
-                            expectedGripType: expertMetrics.expectedGripType || 'unknown'
+                            expectedGripType: expertMetrics.expectedGripType || 'unknown',
+                            speedOptimal: 50,
+                            speedTolerance: 15
                         }
                     );
                 } else if (voiceCoach.voiceEnabled) {
-                    // No expert baseline - speak basic metrics occasionally
-                    voiceCoach.speak(`Angle ${Math.round(metrics.scalpelAngle)} degrees, steadiness ${Math.round(metrics.steadiness)} percent`);
+                    // No expert baseline - use mock AI coaching based on current metrics
+                    // This uses the coachOnMetrics with default targets to generate intelligent feedback
+                    voiceCoach.coachOnMetrics(
+                        {
+                            scalpelAngle: metrics.scalpelAngle,
+                            steadiness: metrics.steadiness,
+                            gripType: metrics.gripType,
+                            speed: metrics.speed,
+                            handDetected: true
+                        },
+                        {
+                            angleTarget: 45, // Default target angle
+                            angleTolerance: 20, // More lenient without expert baseline
+                            steadinessTarget: 70,
+                            expectedGripType: 'pencil',
+                            speedOptimal: 50,
+                            speedTolerance: 20 // More lenient tolerance
+                        }
+                    );
                 }
             }
         }

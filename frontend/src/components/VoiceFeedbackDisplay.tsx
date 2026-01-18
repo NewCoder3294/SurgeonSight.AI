@@ -8,7 +8,7 @@
  * - Premium glass morphism design
  */
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { VoiceMessage, SessionStats } from '../hooks/useVoiceCoach';
 
 interface VoiceFeedbackDisplayProps {
@@ -34,13 +34,13 @@ export default function VoiceFeedbackDisplay({
 }: VoiceFeedbackDisplayProps) {
     const [showHistory, setShowHistory] = useState(false);
 
-    // Determine message type color
+    // Determine message type color - using brighter colors for better contrast
     const getTypeColor = (type: VoiceMessage['type']) => {
         switch (type) {
-            case 'warning': return 'text-red-400';
-            case 'encouragement': return 'text-green-400';
-            case 'summary': return 'text-amber-400';
-            default: return 'text-accent-rust';
+            case 'warning': return 'text-red-300 drop-shadow-[0_0_8px_rgba(252,165,165,0.6)]';
+            case 'encouragement': return 'text-green-300 drop-shadow-[0_0_8px_rgba(134,239,172,0.6)]';
+            case 'summary': return 'text-amber-300 drop-shadow-[0_0_8px_rgba(252,211,77,0.6)]';
+            default: return 'text-orange-300 drop-shadow-[0_0_8px_rgba(253,186,116,0.6)]';
         }
     };
 
@@ -65,10 +65,10 @@ export default function VoiceFeedbackDisplay({
                     <div className="flex items-center gap-3">
                         {/* Speaking indicator with glow */}
                         <div className={`relative w-3 h-3 rounded-full transition-all duration-300 ${isSpeaking
-                                ? 'bg-green-400 shadow-[0_0_12px_rgba(74,222,128,0.8)] animate-pulse'
-                                : voiceEnabled
-                                    ? 'bg-accent-rust shadow-[0_0_8px_rgba(205,127,50,0.5)]'
-                                    : 'bg-gray-500'
+                            ? 'bg-green-400 shadow-[0_0_12px_rgba(74,222,128,0.8)] animate-pulse'
+                            : voiceEnabled
+                                ? 'bg-accent-rust shadow-[0_0_8px_rgba(205,127,50,0.5)]'
+                                : 'bg-gray-500'
                             }`}>
                             {isSpeaking && (
                                 <div className="absolute inset-0 bg-green-400 rounded-full animate-ping opacity-75" />
@@ -94,8 +94,8 @@ export default function VoiceFeedbackDisplay({
                         <button
                             onClick={onToggleVoice}
                             className={`px-3 py-1.5 text-xs font-mono rounded-lg transition-all duration-300 ${voiceEnabled
-                                    ? 'bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30'
-                                    : 'bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30'
+                                ? 'bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30'
+                                : 'bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30'
                                 }`}
                         >
                             Voice {voiceEnabled ? 'ON' : 'OFF'}
@@ -111,7 +111,7 @@ export default function VoiceFeedbackDisplay({
                                 {getTypeIcon(messageHistory[messageHistory.length - 1]?.type || 'coaching')}
                             </span>
                             <div className="flex-1">
-                                <p className={`font-display text-lg leading-relaxed ${getTypeColor(messageHistory[messageHistory.length - 1]?.type || 'coaching')
+                                <p className={`font-display text-xl font-semibold leading-relaxed tracking-wide ${getTypeColor(messageHistory[messageHistory.length - 1]?.type || 'coaching')
                                     }`}>
                                     {displayedText}
                                     {displayedText !== currentMessage && (
@@ -158,8 +158,8 @@ export default function VoiceFeedbackDisplay({
                     <div className="mt-2 h-1.5 bg-black/30 rounded-full overflow-hidden">
                         <div
                             className={`h-full transition-all duration-500 rounded-full ${stats.overallScore >= 80 ? 'bg-green-500' :
-                                    stats.overallScore >= 60 ? 'bg-yellow-500' :
-                                        stats.overallScore >= 40 ? 'bg-orange-500' : 'bg-red-500'
+                                stats.overallScore >= 60 ? 'bg-yellow-500' :
+                                    stats.overallScore >= 40 ? 'bg-orange-500' : 'bg-red-500'
                                 }`}
                             style={{ width: `${stats.overallScore}%` }}
                         />

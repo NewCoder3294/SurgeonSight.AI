@@ -25,7 +25,9 @@ interface ExpertSummaryPanelProps {
   analysisResult: {
     summary: string;
     keyConcepts: string[];
-    notableMoments: string[];
+    notableMoments: Array<{ text: string; timestampMs: number; timestampSource?: 'code' | 'heuristic' }>;
+    lowSignal?: boolean;
+    scaffold?: string[];
   } | null;
   error: string | null;
 }
@@ -46,7 +48,7 @@ export default function ExpertSummaryPanel({
     }
     return logs;
   }, [streamingNotes]);
-  
+
   const hasLogs = logItems.length > 0;
 
   // Debug: Load checkOvershootConfig for console debugging
@@ -173,7 +175,10 @@ export default function ExpertSummaryPanel({
                 <ul className="space-y-1 list-disc list-inside text-text-cream text-sm">
                   {analysisResult.notableMoments.map((moment, i) => (
                     <li key={i} className="leading-relaxed">
-                      {moment}
+                      {moment.timestampMs ? (
+                        <span className="text-text-dim font-mono text-xs">[{(moment.timestampMs / 1000).toFixed(1)}s] </span>
+                      ) : null}
+                      {moment.text}
                     </li>
                   ))}
                 </ul>

@@ -10,8 +10,8 @@
  */
 
 // Stopwords for deduplication (common words to ignore)
-const STOPWORDS = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 
-  'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'been', 'be', 'being', 'have', 
+const STOPWORDS = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+  'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'been', 'be', 'being', 'have',
   'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must',
   'this', 'that', 'these', 'those', 'it', 'its', 'they', 'them', 'their', 'there', 'here',
   'during', 'while', 'when', 'where', 'which', 'who', 'what', 'how', 'why']);
@@ -43,13 +43,13 @@ export function tokenize(text: string): string[] {
 export function similarity(tokens1: string[], tokens2: string[]): number {
   if (tokens1.length === 0 && tokens2.length === 0) return 1;
   if (tokens1.length === 0 || tokens2.length === 0) return 0;
-  
+
   const set1 = new Set(tokens1);
   const set2 = new Set(tokens2);
-  
+
   const intersection = new Set([...set1].filter(x => set2.has(x)));
   const union = new Set([...set1, ...set2]);
-  
+
   return intersection.size / union.size;
 }
 
@@ -59,21 +59,21 @@ export function similarity(tokens1: string[], tokens2: string[]): number {
  */
 export function isNearDuplicate(newNote: string, acceptedNotes: string[], lookbackCount: number = 15): boolean {
   if (acceptedNotes.length === 0) return false;
-  
+
   const newTokens = tokenize(newNote);
   if (newTokens.length === 0) return true; // Empty after tokenization
-  
+
   const recentNotes = acceptedNotes.slice(-lookbackCount);
-  
+
   for (const accepted of recentNotes) {
     const acceptedTokens = tokenize(accepted);
     const sim = similarity(newTokens, acceptedTokens);
-    
+
     if (sim >= 0.75) {
       return true;
     }
   }
-  
+
   return false;
 }
 
@@ -82,13 +82,13 @@ export function isNearDuplicate(newNote: string, acceptedNotes: string[], lookba
  */
 export function hasNewContentTokens(newNote: string, lastAccepted: string | null): boolean {
   if (!lastAccepted) return true;
-  
+
   const newTokens = new Set(tokenize(newNote));
   const lastTokens = new Set(tokenize(lastAccepted));
-  
+
   // Count tokens in newNote that are NOT in lastAccepted
   const newContentTokens = [...newTokens].filter(t => !lastTokens.has(t));
-  
+
   // Require at least 2 new content tokens
   return newContentTokens.length >= 2;
 }
@@ -103,10 +103,10 @@ export function hasNewContentTokens(newNote: string, lastAccepted: string | null
 export function parseOvershootOutput(text: string): { logs: string[]; moments: string[] } {
   const logs: string[] = [];
   const moments: string[] = [];
-  
+
   // Split by lines and parse each
   const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-  
+
   for (const line of lines) {
     // Parse LOG: items
     if (line.startsWith('LOG:')) {
@@ -127,7 +127,7 @@ export function parseOvershootOutput(text: string): { logs: string[]; moments: s
       logs.push(line);
     }
   }
-  
+
   return { logs, moments };
 }
 
@@ -141,7 +141,7 @@ export function deduplicateNotes(notes: string[]): string[] {
 
   for (const note of notes) {
     const normalized = normalize(note);
-    
+
     // Skip exact duplicates (normalized)
     if (seenExact.has(normalized)) {
       continue;
@@ -184,9 +184,9 @@ export function extractSummary(notes: string[]): string {
     const parsed = parseOvershootOutput(note);
     allLogs.push(...parsed.logs);
   }
-  
+
   if (allLogs.length === 0) return '';
-  
+
   // Extract abstract themes from patterns in logs
   const themes: string[] = [];
   const themeKeywords: Record<string, string> = {
@@ -203,10 +203,10 @@ export function extractSummary(notes: string[]): string {
     'angle': 'angle control',
     'approach': 'angle control',
   };
-  
+
   const lowerText = allLogs.join(' ').toLowerCase();
   const foundThemes = new Set<string>();
-  
+
   // Detect themes from keywords
   for (const [keyword, theme] of Object.entries(themeKeywords)) {
     if (lowerText.includes(keyword) && !foundThemes.has(theme)) {
@@ -214,7 +214,7 @@ export function extractSummary(notes: string[]): string {
       themes.push(theme);
     }
   }
-  
+
   // Generate abstract summary sentences (not verbatim from logs)
   if (themes.length >= 2) {
     return `The procedure demonstrates focused attention on ${themes[0]} and ${themes[1]}. Technical execution shows consistent application of surgical principles with emphasis on ${themes[0]}.`;
@@ -224,7 +224,7 @@ export function extractSummary(notes: string[]): string {
     // Fallback: generic abstract summary
     return 'The procedure demonstrates consistent application of surgical technique and instrument control. Technical execution shows focused attention to procedural details.';
   }
-  
+
   return '';
 }
 
@@ -246,14 +246,14 @@ export function extractKeyConcepts(notes: string[]): string[] {
     const parsed = parseOvershootOutput(note);
     allLogs.push(...parsed.logs);
   }
-  
+
   if (allLogs.length === 0) return [];
-  
+
   // Extract actionable concepts by extracting unique themes and actions
   const concepts: string[] = [];
   const seenThemes = new Set<string>();
   const seenNormalized = new Set<string>();
-  
+
   // Theme keywords (prioritized themes)
   const themeMap: Record<string, string> = {
     'wrist': 'wrist stability',
@@ -273,18 +273,18 @@ export function extractKeyConcepts(notes: string[]): string[] {
     'cautery': 'hemostasis',
     'suturing': 'wound closure',
   };
-  
+
   // Action verbs for actionable concepts
-  const actionVerbs = ['maintain', 'avoid', 'keep', 'reduce', 'stabilize', 'control', 'ensure', 
-                       'focus', 'apply', 'adjust', 'modulate', 'handle', 'minimize', 'preserve',
-                       'use', 'position', 'direct', 'prevent'];
-  
+  const actionVerbs = ['maintain', 'avoid', 'keep', 'reduce', 'stabilize', 'control', 'ensure',
+    'focus', 'apply', 'adjust', 'modulate', 'handle', 'minimize', 'preserve',
+    'use', 'position', 'direct', 'prevent'];
+
   // First pass: Extract theme-based concepts
   for (const log of allLogs) {
     if (concepts.length >= 8) break;
-    
+
     const lower = log.toLowerCase();
-    
+
     // Find theme keyword
     let themeKey: string | null = null;
     for (const [keyword, theme] of Object.entries(themeMap)) {
@@ -294,7 +294,7 @@ export function extractKeyConcepts(notes: string[]): string[] {
         break;
       }
     }
-    
+
     // Find action verb
     let actionVerb: string | null = null;
     for (const verb of actionVerbs) {
@@ -303,15 +303,15 @@ export function extractKeyConcepts(notes: string[]): string[] {
         break;
       }
     }
-    
+
     // Build concept from action + theme
     if (themeKey && actionVerb) {
       // Build actionable phrase: "Maintain wrist stability" not "Control control"
       const conceptWords: string[] = [];
-      
+
       // Add action verb (capitalized)
       conceptWords.push(actionVerb.charAt(0).toUpperCase() + actionVerb.slice(1));
-      
+
       // Add theme (avoid repeating the verb)
       const themeWords = themeKey.split(' ');
       for (const word of themeWords) {
@@ -319,9 +319,9 @@ export function extractKeyConcepts(notes: string[]): string[] {
           conceptWords.push(word);
         }
       }
-      
+
       const concept = conceptWords.join(' ').trim();
-      
+
       // Hard enforce ≤8 words
       const conceptWordsList = concept.split(/\s+/);
       if (conceptWordsList.length <= 8) {
@@ -333,14 +333,14 @@ export function extractKeyConcepts(notes: string[]): string[] {
       }
     }
   }
-  
+
   // Second pass: Extract additional actionable phrases if we have < 4 concepts
   if (concepts.length < 4) {
     for (const log of allLogs) {
       if (concepts.length >= 8) break;
-      
+
       const words = log.split(/\s+/);
-      
+
       // Extract first actionable phrase (up to 8 words)
       // Start from first verb if found
       let startIdx = 0;
@@ -351,38 +351,38 @@ export function extractKeyConcepts(notes: string[]): string[] {
           break;
         }
       }
-      
+
       const phraseWords = words.slice(startIdx, startIdx + 8);
       const concept = phraseWords.join(' ').trim();
-      
+
       // Skip if too short or empty
       if (concept.length < 5) continue;
-      
+
       // Hard enforce ≤8 words
       const conceptWordsList = concept.split(/\s+/);
       if (conceptWordsList.length <= 8) {
         const normalized = normalize(concept);
-        
+
         // Check for duplicates (exact and near-duplicate)
         let isDuplicate = false;
         for (const existing of concepts) {
-          if (normalized === normalize(existing) || 
-              similarity(tokenize(concept), tokenize(existing)) >= 0.75) {
+          if (normalized === normalize(existing) ||
+            similarity(tokenize(concept), tokenize(existing)) >= 0.75) {
             isDuplicate = true;
             break;
           }
         }
-        
+
         // Check for theme duplicates
         let isThemeDuplicate = false;
         for (const theme of seenThemes) {
-          if (concept.toLowerCase().includes(theme.toLowerCase()) || 
-              theme.toLowerCase().includes(concept.toLowerCase())) {
+          if (concept.toLowerCase().includes(theme.toLowerCase()) ||
+            theme.toLowerCase().includes(concept.toLowerCase())) {
             isThemeDuplicate = true;
             break;
           }
         }
-        
+
         if (!isDuplicate && !isThemeDuplicate && !seenNormalized.has(normalized)) {
           concepts.push(concept);
           seenNormalized.add(normalized);
@@ -390,7 +390,7 @@ export function extractKeyConcepts(notes: string[]): string[] {
       }
     }
   }
-  
+
   // Ensure 4-8 concepts
   return concepts.slice(0, 8).filter(c => c.split(/\s+/).length <= 8);
 }
@@ -401,7 +401,7 @@ export function extractKeyConcepts(notes: string[]): string[] {
  * Requirements:
  * - 0-5 items (not forced to have moments)
  * - Timestamps come from video.currentTime (attached in code, not from model)
- * - Format: "mm:ss – <insight>" if timestamp exists
+ * - Returns objects with {text, timestampMs, timestampSource: 'code'}
  * - Do NOT trust model-provided timestamps (they may be hallucinated)
  * - Promote logs with strong surgical keywords (hemostasis, cautery, dissection plane, etc.)
  * 
@@ -412,9 +412,9 @@ export function extractKeyConcepts(notes: string[]): string[] {
  * 
  * Notes format: Array of objects { text: string, timestamp: number, type: 'LOG' | 'MOMENT' } or strings
  */
-export function extractNotableMoments(notes: (string | { text: string; timestamp?: number; type?: 'LOG' | 'MOMENT' })[]): string[] {
+export function extractNotableMoments(notes: (string | { text: string; timestamp?: number; type?: 'LOG' | 'MOMENT' })[]): Array<{ text: string; timestampMs: number; timestampSource: 'code' }> {
   if (notes.length === 0) return [];
-  
+
   // Strong surgical keywords that indicate notable technique moments
   // These keywords signal important surgical actions or techniques worth highlighting
   const notableKeywords = [
@@ -434,15 +434,15 @@ export function extractNotableMoments(notes: (string | { text: string; timestamp
     'error-prevention', 'avoiding', 'preventing',
     'critical', 'significant', 'important technique',
   ];
-  
+
   const moments: Array<{ text: string; timestamp: number; score: number }> = [];
   const seen = new Set<string>();
-  
+
   // Process notes: promote logs with notable keywords to moments
   for (const note of notes) {
     let text: string;
     let timestamp: number | undefined;
-    
+
     if (typeof note === 'object') {
       text = note.text;
       timestamp = note.timestamp;
@@ -454,18 +454,18 @@ export function extractNotableMoments(notes: (string | { text: string; timestamp
         text = parsed.moments[0];
       }
     }
-    
+
     // Remove any model-provided timestamps from text
     text = text.replace(/^\d+[:\d]*[sm]?\s*[-–]?\s*/i, '').trim();
-    
+
     if (!text) continue;
-    
+
     const normalized = normalize(text);
     if (seen.has(normalized)) continue;
-    
+
     // Only include if we have a valid timestamp (code-attached, never from model)
     if (timestamp === undefined || timestamp <= 0) continue;
-    
+
     // Score based on notable keyword matches (higher score = more notable)
     const lowerText = text.toLowerCase();
     let score = 0;
@@ -474,7 +474,7 @@ export function extractNotableMoments(notes: (string | { text: string; timestamp
         score += 1;
       }
     }
-    
+
     // Promote logs with at least one notable keyword (score > 0)
     // Or all logs if we have very few notes (fallback)
     if (score > 0 || notes.length < 3) {
@@ -482,22 +482,23 @@ export function extractNotableMoments(notes: (string | { text: string; timestamp
       seen.add(normalized);
     }
   }
-  
+
   // Sort by score (higher = more notable keywords), then by timestamp
   moments.sort((a, b) => {
     if (a.score !== b.score) return b.score - a.score; // Higher score first
     return a.timestamp - b.timestamp; // Then by chronological order
   });
-  
-  // Format and return 0-5 moments with timestamps (code-attached only)
-  const formattedMoments = moments
+
+  // Return 0-5 moments with timestamps in milliseconds (code-attached only)
+  const notableMoments = moments
     .slice(0, 5) // Max 5 moments as per requirement
-    .map(({ text, timestamp }) => {
-      const timeStr = formatTimestamp(timestamp);
-      return `${timeStr} – ${text}`;
-    });
-  
-  return formattedMoments; // Can be 0-5 items
+    .map(({ text, timestamp }) => ({
+      text,
+      timestampMs: Math.round(timestamp * 1000), // Convert seconds to milliseconds
+      timestampSource: 'code' as const
+    }));
+
+  return notableMoments; // Can be 0-5 items
 }
 
 /**

@@ -38,32 +38,275 @@ const DEFAULT_STATS: SessionStats = {
     overallScore: 0
 };
 
-// Coaching phrases for different scenarios
+// 100+ Mock LLM-style coaching phrases - simulates AI analysis output
+// Organized by category: speed metrics and hand detection states
+// Includes POSITIVE, NEGATIVE, and NORMAL feedback for each metric
+
 const COACHING_PHRASES = {
+    // =============================================================
+    // === SPEED METRICS ===
+    // =============================================================
+
+    // Speed: Too Fast - NEGATIVE (25 correction phrases)
+    speedTooFast: [
+        "Movement too fast. Slow down for precision.",
+        "Rushing the motion. Control your tempo.",
+        "Accelerating too quickly. Ease into movements.",
+        "Speed exceeding optimal range. Decelerate.",
+        "Rapid hand motion detected. More deliberate pace.",
+        "Too quick. Risk of overshooting target.",
+        "Velocity too high. Reduce speed by 30%.",
+        "Fast movements compromise accuracy. Slow down.",
+        "Hand speed above threshold. Apply brake.",
+        "Racing detected. Precision requires patience.",
+        "Hurried technique observed. Breathe and slow.",
+        "Motion blur in tracking. Decrease velocity.",
+        "Fast-twitch movements. Switch to controlled glide.",
+        "Speed spike detected. Return to baseline.",
+        "Acceleration curve too steep. Gradual changes.",
+        "Hand trajectory moving too rapidly. Modulate.",
+        "Quick movements reduce control. Slow tempo.",
+        "Excessive speed in distal movements. Temper.",
+        "Rapid articulation noted. More measured approach.",
+        "Speed compromising stability. Dial back 40%.",
+        "Too hasty. Surgical precision needs time.",
+        "Velocity exceeds safe operating range. Caution.",
+        "Swift movements detected. Transition to smooth flow.",
+        "High-speed hand displacement. Reduce urgency.",
+        "Tempo too aggressive. Adopt gentler pace.",
+    ],
+
+    // Speed: Too Slow - NEGATIVE (20 correction phrases)
+    speedTooSlow: [
+        "Movement too slow. Increase efficiency.",
+        "Velocity below optimal. Speed up slightly.",
+        "Hand motion too cautious. More confidence.",
+        "Sluggish movements. Elevate tempo 20%.",
+        "Underspeed detected. Procedure requires pace.",
+        "Too deliberate. Find balance with speed.",
+        "Hesitant motion. Trust your training.",
+        "Movement efficiency low. Accelerate moderately.",
+        "Hand speed insufficient. Increase by 25%.",
+        "Dragging tempo. Surgical time matters.",
+        "Slow trajectory. Maintain steady momentum.",
+        "Lethargic hand positioning. More decisive.",
+        "Under-paced movements. Time is critical.",
+        "Velocity lagging. Step up the rhythm.",
+        "Hand motion too tentative. Be assertive.",
+        "Slow execution detected. Boost confidence.",
+        "Movement rate below standard. Increase.",
+        "Prolonged dwell time. Keep motion flowing.",
+        "Delayed response. Sharpen reaction speed.",
+        "Torpid movements. Inject more energy.",
+    ],
+
+    // Speed: Perfect/Steady - POSITIVE (40 phrases)
+    speedSteady: [
+        "Steady speed. Maintain this pace.",
+        "Perfect velocity. Well controlled.",
+        "Excellent pacing throughout.",
+        "Good rhythm. Keep it consistent.",
+        "Optimal speed maintained. Outstanding.",
+        "Smooth velocity profile. Textbook execution.",
+        "Ideal tempo. This is the standard.",
+        "Speed metrics perfect. Continue.",
+        "Consistent pace observed. Excellent work.",
+        "Balanced velocity. Maintain control.",
+        "Precise timing. Keep this cadence.",
+        "Speed variance minimal. Very good.",
+        "Steady hand motion. Exemplary.",
+        "Tempo on target. Sustain rhythm.",
+        "Fluid movements at right speed. Nice.",
+        "Velocity consistency excellent. Gold standard.",
+        "Pacing discipline evident. Keep going.",
+        "Speed modulation perfect. Well done.",
+        "Controlled tempo throughout. Impressive.",
+        "Movement rate ideal. Lock this in.",
+        "Steady acceleration curve. Masterful.",
+        "Optimal hand velocity achieved. Beautiful.",
+        "Consistent speed metrics. Professional grade.",
+        "Smooth pace maintained. Textbook.",
+        "Perfect rhythm detected. Continue exactly.",
+        "Velocity control outstanding. Keep it up.",
+        "Tempo discipline remarkable. Very nice.",
+        "Speed stability excellent. Maintain.",
+        "Balanced pacing achieved. Superb.",
+        "Ideal motion velocity. This is it.",
+        "Precision pacing locked in. Outstanding.",
+        "Movement tempo ideal. Surgical quality.",
+        "Speed regulation excellent. Continue.",
+        "Optimized velocity tracking. Keep steady.",
+        "Perfect motion timing. Expert level.",
+        "Calibrated speed maintained. Brilliant.",
+        "Smooth tempo execution. Very precise.",
+        "Velocity in optimal range. Excellent.",
+        "Consistent motion rate. Professional.",
+        "Perfect speed control demonstrated.",
+    ],
+
+    // =============================================================
+    // === HAND DETECTION (Only shown when hand detected) ===
+    // =============================================================
+
+    // Hand Stability - POSITIVE (15 phrases)
+    handStable: [
+        "Hand position stable. Excellent control.",
+        "Steady hand tracking. Keep it locked.",
+        "Minimal hand shake. Very steady.",
+        "Rock-solid hand position. Perfect.",
+        "Hand stability optimal. Maintain.",
+        "Hand steadiness impressive. Continue.",
+        "Stable hand trajectory. Excellent.",
+        "Hand hold consistent. Very good.",
+        "Zero hand shake detected. Outstanding.",
+        "Hand tracking precise. Keep steady.",
+        "Stable grip detected. Maintain position.",
+        "Excellent hand steadiness observed.",
+        "Hand motion controlled. Perfect form.",
+        "Steady hand placement. Continue.",
+        "Hand stability exceptional. Great work.",
+    ],
+
+    // Hand Stability - NEGATIVE (15 correction phrases)
+    handUnstable: [
+        "Hand tremor detected. Stabilize grip.",
+        "Hand oscillation observed. Firm up.",
+        "Hand wobble detected. Anchor wrist.",
+        "Micro-tremors present. Breathe deeply.",
+        "Hand drift detected. Recenter position.",
+        "Hand instability rising. Focus grip.",
+        "Excessive hand shake. Plant elbow firmly.",
+        "Hand wavering. Find your anchor point.",
+        "Unsteady grip detected. Stabilize now.",
+        "Hand trembling observed. Relax and steady.",
+        "Erratic hand motion. Smooth it out.",
+        "Hand jitter detected. Control breathing.",
+        "Shaky hand positioning. Ground yourself.",
+        "Hand movement erratic. Focus on control.",
+        "Unstable hand trajectory. Recalibrate.",
+    ],
+
+    // Hand Positioning - POSITIVE (15 phrases)
+    handPositioning: [
+        "Hand angle optimal. Good positioning.",
+        "Proper hand alignment maintained.",
+        "Hand pose correct. Keep this form.",
+        "Perfect hand articulation. Well done.",
+        "Hand geometry ideal. Maintain position.",
+        "Hand orientation locked. Excellent.",
+        "Hand posture textbook. Very nice.",
+        "Hand configuration perfect. Continue.",
+        "Optimal hand angle achieved.",
+        "Hand placement precise. Excellent.",
+        "Perfect hand orientation. Maintain.",
+        "Hand alignment excellent. Keep going.",
+        "Proper hand pose. Professional level.",
+        "Hand geometry correct. Outstanding.",
+        "Perfect hand positioning detected.",
+    ],
+
+    // Hand Positioning - NEGATIVE (15 correction phrases)
+    handPositioningBad: [
+        "Hand orientation off. Adjust 15 degrees.",
+        "Hand tilt excessive. Level out.",
+        "Hand rotation needed. Clockwise 10 degrees.",
+        "Hand elevation too high. Lower slightly.",
+        "Hand angle suboptimal. Adjust ergonomics.",
+        "Hand placement off-center. Recalibrate.",
+        "Hand pitch incorrect. Tilt adjustment needed.",
+        "Improper hand angle detected. Correct now.",
+        "Hand misaligned. Rotate to proper position.",
+        "Hand position drifting. Return to center.",
+        "Awkward hand posture. Adjust for comfort.",
+        "Hand geometry off. Reposition palm.",
+        "Suboptimal wrist angle. Straighten out.",
+        "Hand configuration needs work. Adjust.",
+        "Hand positioning inefficient. Optimize angle.",
+    ],
+
+    // Hand Movement Quality - POSITIVE (10 phrases)
+    handMovement: [
+        "Smooth hand transition. Excellent.",
+        "Fluid hand movement. Keep going.",
+        "Hand motion trajectory perfect.",
+        "Coordinated hand movement. Great.",
+        "Hand displacement optimal. Continue.",
+        "Precise hand movement detected.",
+        "Hand motion smooth. Professional.",
+        "Controlled hand transition. Maintain.",
+        "Hand movement efficiency high.",
+        "Optimal hand motion pattern.",
+    ],
+
+    // Hand Movement Quality - NEGATIVE (10 phrases)
+    handMovementBad: [
+        "Jerky hand movement. Smooth it out.",
+        "Erratic hand displacement. Control needed.",
+        "Hand transitions choppy. Needs work.",
+        "Abrupt hand motion. More fluid approach.",
+        "Hand movement inconsistent. Standardize.",
+        "Uncoordinated hand motion. Focus.",
+        "Hand tracking irregular. Improve rhythm.",
+        "Rough hand transitions. Need smoothing.",
+        "Hand motion efficiency low. Optimize.",
+        "Discontinuous hand movement. Flow needed.",
+    ],
+
+    // =============================================================
+    // === GENERAL FEEDBACK ===
+    // =============================================================
+
+    // General Encouragement - POSITIVE (15 phrases)
+    goodJob: [
+        "Perfect technique!",
+        "That's it, maintain this position!",
+        "Excellent form, keep going!",
+        "Beautiful execution!",
+        "Outstanding performance!",
+        "Textbook technique observed!",
+        "Professional quality work!",
+        "Keep up this excellent pace!",
+        "Remarkable precision shown!",
+        "Exceptional control demonstrated!",
+        "Superb technique maintained!",
+        "Excellent metrics across the board!",
+        "Perfect form achieved!",
+        "Outstanding stability and control!",
+        "Continue this excellent work!",
+    ],
+
+    // Angle Adjustments - NEGATIVE (compatibility phrases)
     angleHigh: [
         "Lower your wrist angle!",
         "Bring your hand down, you're too high!",
         "Expert angle is lower, rotate downward!",
+        "Angle exceeding target. Lower by 10 degrees.",
+        "Wrist elevation too high. Adjust down.",
     ],
     angleLow: [
         "Raise your wrist angle!",
         "Lift your hand up a bit!",
         "Angle too low, rotate upward!",
+        "Insufficient angle detected. Raise by 10 degrees.",
+        "Wrist position too low. Elevate slightly.",
     ],
+
+    // Steadiness - NEGATIVE (compatibility phrases)
     unstable: [
         "Stabilize your hand!",
         "Too much movement, find your anchor point!",
         "Keep steady, rest your hand if needed!",
+        "Excessive motion detected. Lock in position.",
+        "Steadiness compromised. Focus and stabilize.",
     ],
-    goodJob: [
-        "Perfect technique!",
-        "That's it, maintain this position!",
-        "Excellent angle, keep going!",
-        "Beautiful form!",
-    ],
+
+    // Grip Feedback
     gripChange: [
         "Switch to pencil grip for precision!",
         "Expert uses pencil grip here!",
+        "Grip adjustment recommended.",
+        "Consider changing grip type.",
+        "Grip optimization possible.",
     ]
 };
 
@@ -187,7 +430,7 @@ export function useVoiceCoach() {
 
     // Speech synthesis with robust fallback
     const speakWithSynthesis = useCallback((text: string, urgent: boolean = false): Promise<void> => {
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
             if (!synthRef.current) {
                 console.warn('Speech synthesis not available');
                 // Still resolve so UI feedback works
@@ -242,16 +485,21 @@ export function useVoiceCoach() {
         });
     }, []);
 
-    // Coach based on metrics comparison
+    // Coach based on metrics comparison - Enhanced with speed tracking
+    // Hand-related feedback only shown when handDetected is true
     const coachOnMetrics = useCallback((current: {
         scalpelAngle: number;
         steadiness: number;
         gripType: string;
+        speed?: number; // Optional speed metric (0-100, 50 is optimal)
+        handDetected?: boolean; // Whether hand is currently detected
     }, expert: {
         angleTarget: number;
         angleTolerance: number;
         steadinessTarget: number;
         expectedGripType: string;
+        speedOptimal?: number; // Optimal speed target (default 50)
+        speedTolerance?: number; // Tolerance for speed (default 15)
     }) => {
         const now = Date.now();
         const timeSinceLastCoach = now - lastCoachTimeRef.current;
@@ -262,13 +510,25 @@ export function useVoiceCoach() {
         const angleDiff = current.scalpelAngle - expert.angleTarget;
         const absAngleDiff = Math.abs(angleDiff);
 
+        // Speed metrics with defaults
+        const speedOptimal = expert.speedOptimal ?? 50;
+        const speedTolerance = expert.speedTolerance ?? 15;
+        const currentSpeed = current.speed ?? 50;
+        const speedDiff = currentSpeed - speedOptimal;
+        const handDetected = current.handDetected ?? true;
+
         // Track angle diffs for average
         angleDiffsRef.current.push(absAngleDiff);
         if (angleDiffsRef.current.length > 100) angleDiffsRef.current.shift();
 
+        // Helper to get random phrase from array
+        const getRandomPhrase = (phrases: string[]) =>
+            phrases[Math.floor(Math.random() * phrases.length)];
+
         // Check if on track for streak counting
         const onTrack = absAngleDiff <= expert.angleTolerance &&
-            current.steadiness >= expert.steadinessTarget - 10;
+            current.steadiness >= expert.steadinessTarget - 10 &&
+            Math.abs(speedDiff) <= speedTolerance;
 
         if (onTrack) {
             if (streakStartRef.current === 0) {
@@ -281,34 +541,68 @@ export function useVoiceCoach() {
                 bestStreak: Math.max(prev.bestStreak, streakTime)
             }));
 
-            // Occasional encouragement (every 15+ seconds on track)
-            if (timeSinceLastCoach > 15000) {
-                const phrase = COACHING_PHRASES.goodJob[Math.floor(Math.random() * COACHING_PHRASES.goodJob.length)];
-                speak(phrase, 'encouragement', 'normal');
+            // Occasional encouragement (every 10-15 seconds on track)
+            if (timeSinceLastCoach > 10000) {
+                // Mix of speed and general positive feedback
+                const feedbackOptions: string[] = [...COACHING_PHRASES.goodJob];
+
+                // Add speed steady phrases
+                feedbackOptions.push(...COACHING_PHRASES.speedSteady.slice(0, 10));
+
+                // Add hand-related positive feedback only if hand detected
+                if (handDetected) {
+                    feedbackOptions.push(...COACHING_PHRASES.handStable.slice(0, 5));
+                    feedbackOptions.push(...COACHING_PHRASES.handPositioning.slice(0, 5));
+                    feedbackOptions.push(...COACHING_PHRASES.handMovement.slice(0, 5));
+                }
+
+                speak(getRandomPhrase(feedbackOptions), 'encouragement', 'normal');
                 lastCoachTimeRef.current = now;
             }
         } else {
             streakStartRef.current = 0;
             setStats(prev => ({ ...prev, currentStreak: 0 }));
 
-            // Determine what needs correction
-            if (absAngleDiff > expert.angleTolerance * 2) {
-                // Major angle deviation
+            // Determine what needs correction - prioritize by severity
+
+            // 1. Speed issues (highest priority for surgical procedures)
+            if (currentSpeed > speedOptimal + speedTolerance * 1.5) {
+                // Too fast - negative feedback
+                const phrase = getRandomPhrase(COACHING_PHRASES.speedTooFast);
+                speak(phrase, 'warning', 'high');
+                lastCoachTimeRef.current = now;
+            } else if (currentSpeed < speedOptimal - speedTolerance * 1.5) {
+                // Too slow - negative feedback
+                const phrase = getRandomPhrase(COACHING_PHRASES.speedTooSlow);
+                speak(phrase, 'coaching', 'high');
+                lastCoachTimeRef.current = now;
+            }
+            // 2. Angle deviation (only if hand detected)
+            else if (absAngleDiff > expert.angleTolerance * 2 && handDetected) {
                 const phrases = angleDiff > 0 ? COACHING_PHRASES.angleHigh : COACHING_PHRASES.angleLow;
-                const phrase = phrases[Math.floor(Math.random() * phrases.length)];
+                const phrase = getRandomPhrase(phrases);
                 const fullMessage = `${phrase} You're at ${Math.round(current.scalpelAngle)} degrees, target is ${expert.angleTarget}!`;
                 speak(fullMessage, 'warning', 'high');
                 lastCoachTimeRef.current = now;
-            } else if (current.steadiness < expert.steadinessTarget - 20) {
-                // Steadiness issue
-                const phrase = COACHING_PHRASES.unstable[Math.floor(Math.random() * COACHING_PHRASES.unstable.length)];
+            }
+            // 3. Steadiness issue (only if hand detected)
+            else if (current.steadiness < expert.steadinessTarget - 20 && handDetected) {
+                // Use handUnstable phrases
+                const phrase = getRandomPhrase(COACHING_PHRASES.handUnstable);
                 speak(phrase, 'coaching', 'high');
                 lastCoachTimeRef.current = now;
-            } else if (expert.expectedGripType !== 'unknown' &&
+            }
+            // 4. Hand positioning issues (only if hand detected)
+            else if (handDetected && absAngleDiff > expert.angleTolerance) {
+                const phrase = getRandomPhrase(COACHING_PHRASES.handPositioningBad);
+                speak(phrase, 'coaching', 'normal');
+                lastCoachTimeRef.current = now;
+            }
+            // 5. Grip mismatch
+            else if (expert.expectedGripType !== 'unknown' &&
                 current.gripType !== 'unknown' &&
                 current.gripType !== expert.expectedGripType) {
-                // Grip mismatch
-                speak(COACHING_PHRASES.gripChange[0], 'coaching', 'normal');
+                speak(getRandomPhrase(COACHING_PHRASES.gripChange), 'coaching', 'normal');
                 lastCoachTimeRef.current = now;
             }
         }

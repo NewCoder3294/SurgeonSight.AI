@@ -9,8 +9,15 @@ interface ExpertVideoPanelProps {
   onAnalysisStart: () => void;
   onAnalysisComplete: () => void;
   onNotesUpdate: (notes: string[]) => void;
-  onAnalysisResult: (result: { summary: string; keyConcepts: string[]; notableMoments: string[] }) => void;
+  onAnalysisResult: (result: {
+    summary: string;
+    keyConcepts: string[];
+    notableMoments: Array<{ text: string; timestampMs: number; timestampSource?: 'code' | 'heuristic' }>;
+    lowSignal?: boolean;
+    scaffold?: string[];
+  }) => void;
   onError?: (error: string) => void;
+  onVideoUploaded?: () => void;
 }
 
 /**
@@ -68,7 +75,7 @@ export default function ExpertVideoPanel({
   const notesAccumulatorRef = useRef<Array<{ text: string; timestamp: number; type: 'LOG' | 'MOMENT' }>>([]);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const videoEndedCleanupRef = useRef<(() => void) | null>(null);
-  
+
   // Throttling: Queue incoming Overshoot messages and flush to UI on interval
   // MIN_TIME_BETWEEN_NOTES_MS: Minimum time (3-5 seconds) between accepting new notes
   // To tune throttling: Adjust MIN_TIME_BETWEEN_NOTES_MS (higher = more sparse, lower = more frequent)
@@ -158,13 +165,13 @@ export default function ExpertVideoPanel({
       });
 
       visionInstanceRef.current = vision;
-      
+
       // Initialize flush interval: check queue every FLUSH_INTERVAL_MS
       // Notes are only accepted if MIN_TIME_BETWEEN_NOTES_MS has passed since last acceptance
       flushIntervalRef.current = setInterval(() => {
         flushResults();
       }, FLUSH_INTERVAL_MS);
-      
+
       await vision.start();
 
       // Fallback timeout: complete after 60 seconds max (or video duration + buffer)
@@ -216,7 +223,7 @@ export default function ExpertVideoPanel({
    */
   const flushResults = () => {
     if (messageQueueRef.current.length === 0) return;
-    
+
     // Throttling: Only accept new note if enough time has passed
     const now = Date.now();
     const timeSinceLastAccepted = now - lastAcceptedTimeRef.current;
@@ -224,89 +231,89 @@ export default function ExpertVideoPanel({
       // Not enough time has passed, skip this flush
       return;
     }
-    
+
     // Filter: keep only non-empty messages
     const candidates = messageQueueRef.current
       .map(msg => msg.trim())
       .filter(msg => msg.length > 0);
-    
+
     if (candidates.length === 0) {
       messageQueueRef.current = [];
       return;
     }
-    
+
     // Pick best candidate: longest unique message (most informative)
     // Sort by length descending, then pick first that passes filters
     const sortedCandidates = [...candidates].sort((a, b) => b.length - a.length);
-    
+
     let selectedCandidate: string | null = null;
     let selectedType: 'LOG' | 'MOMENT' = 'LOG';
-    
+
     for (const candidate of sortedCandidates) {
       // Determine type (LOG vs MOMENT) - though we parse both, track type for future use
-      const isMoment = candidate.toLowerCase().includes('moment:') || 
-                       acceptedNotesRef.current.length % 5 === 0; // Rough heuristic: every 5th note might be moment
+      const isMoment = candidate.toLowerCase().includes('moment:') ||
+        acceptedNotesRef.current.length % 5 === 0; // Rough heuristic: every 5th note might be moment
       const cleanCandidate = candidate.replace(/^(LOG|MOMENT):\s*/i, '').trim();
-      
+
       // Check exact duplicate against accumulator
       const normalizedCandidate = cleanCandidate.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
       const isExactDuplicate = notesAccumulatorRef.current.some(note => {
         const normalizedNote = note.text.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
         return normalizedNote === normalizedCandidate;
       });
-      
+
       if (isExactDuplicate) continue;
-      
+
       // Check near-duplicate using Jaccard similarity (>= 0.75 threshold)
       if (isNearDuplicate(cleanCandidate, acceptedNotesRef.current, 15)) {
         continue;
       }
-      
+
       // Template dedupe: require at least 2 new content tokens
-      const lastAccepted = acceptedNotesRef.current.length > 0 
-        ? acceptedNotesRef.current[acceptedNotesRef.current.length - 1] 
+      const lastAccepted = acceptedNotesRef.current.length > 0
+        ? acceptedNotesRef.current[acceptedNotesRef.current.length - 1]
         : null;
       if (!hasNewContentTokens(cleanCandidate, lastAccepted)) {
         continue;
       }
-      
+
       // Candidate passed all filters
       selectedCandidate = cleanCandidate;
       selectedType = isMoment ? 'MOMENT' : 'LOG';
       break;
     }
-    
+
     // If we found a valid candidate, add it to accumulator with timestamp
     if (selectedCandidate) {
       // Capture video.currentTime when logging (code-attached timestamp, trusted)
       const videoEl = videoRef.current;
-      const timestamp = (videoEl && !isNaN(videoEl.currentTime) && isFinite(videoEl.currentTime)) 
-        ? videoEl.currentTime 
+      const timestamp = (videoEl && !isNaN(videoEl.currentTime) && isFinite(videoEl.currentTime))
+        ? videoEl.currentTime
         : 0; // Default to 0 if video not ready
-      
+
       const noteWithTimestamp: { text: string; timestamp: number; type: 'LOG' | 'MOMENT' } = {
         text: selectedCandidate,
         timestamp,
         type: selectedType,
       };
-      
+
       notesAccumulatorRef.current.push(noteWithTimestamp);
-      
+
       // Track in accepted notes (keep last 15 for dedupe lookback - text only for dedupe)
       acceptedNotesRef.current.push(selectedCandidate);
       if (acceptedNotesRef.current.length > 15) {
         acceptedNotesRef.current.shift();
       }
-      
+
       // Update throttling timestamp
       lastAcceptedTimeRef.current = now;
-      
+
       // Update parent with current state (extract text for UI)
       const noteTexts = notesAccumulatorRef.current.map(n => n.text);
       const deduped = deduplicateNotes(noteTexts);
       onNotesUpdate(deduped);
     }
-    
+
     // Clear queue for next interval
     messageQueueRef.current = [];
   };
@@ -345,7 +352,7 @@ export default function ExpertVideoPanel({
 
     // Process accumulated notes (generate Overview at completion only)
     const { extractSummary, extractKeyConcepts, extractNotableMoments, deduplicateNotes } = await import('../utils/noteProcessing');
-    
+
     // Extract text for deduplication and summary/key concepts extraction
     const noteTexts = notesAccumulatorRef.current.map(n => n.text);
     const dedupedNoteTexts = deduplicateNotes(noteTexts);
@@ -357,7 +364,7 @@ export default function ExpertVideoPanel({
     // Overview: abstract themes only, not verbatim log sentences
     const summary = extractSummary(dedupedNoteTexts);
     const keyConcepts = extractKeyConcepts(dedupedNoteTexts);
-    
+
     // Notable moments: use notes with code-attached timestamps and type (not model-provided)
     // Notes format: { text: string, timestamp: number, type: 'LOG' | 'MOMENT' }
     const notableMoments = extractNotableMoments(notesAccumulatorRef.current);

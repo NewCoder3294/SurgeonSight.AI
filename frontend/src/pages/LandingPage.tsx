@@ -1,5 +1,4 @@
 import { useNavigate } from 'react-router-dom';
-import CornerBrackets from '../components/CornerBrackets';
 import ThemeToggle from '../components/ThemeToggle';
 
 export default function LandingPage() {
@@ -18,32 +17,37 @@ export default function LandingPage() {
             {/* Main content - centered hero */}
             <main className="flex-1 flex items-center justify-center px-8 relative z-[1]">
                 <div className="text-center max-w-[800px] w-full">
+                    {/* Hackathon Badge */}
+                    <div className="mb-6 animate-fade-in-up">
+                        <span className="font-mono text-sm tracking-[0.3em] text-[#22c55e] border border-[#22c55e]/30 px-4 py-2 inline-block">
+                            [ NexHacks 2026 ]
+                        </span>
+                    </div>
+
                     {/* Main headline */}
-                    <h1 className="mb-5 leading-tight animate-fade-in-up">
+                    <h1 className="mb-5 leading-tight animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
                         <span className="block text-[clamp(2.25rem,8vw,5.5rem)] text-text-cream drop-shadow-[0_0_60px_rgba(245,240,232,0.1)]">Your AI</span>
                         <span className="block text-[clamp(2.25rem,8vw,5.5rem)] text-accent-rust drop-shadow-[0_0_80px_var(--accent-rust-glow)]">Surgical</span>
                         <span className="block text-[clamp(2.25rem,8vw,5.5rem)] text-text-cream drop-shadow-[0_0_60px_rgba(245,240,232,0.1)]">Coach</span>
                     </h1>
 
                     {/* Value proposition - one line */}
-                    <p className="font-mono text-sm tracking-widest text-text-muted mb-8 uppercase animate-fade-in-up max-[768px]:text-xs max-[768px]:tracking-wider" style={{ animationDelay: '0.2s' }}>
+                    <p className="font-mono text-sm tracking-widest text-text-muted mb-8 uppercase animate-fade-in-up max-[768px]:text-xs max-[768px]:tracking-wider" style={{ animationDelay: '0.3s' }}>
                         Real-time feedback. Any language. Just a webcam.
                     </p>
 
                     {/* Primary CTA - decisive and anchored */}
-                    <div className="inline-block mb-10 animate-fade-in-up max-[768px]:mb-8" style={{ animationDelay: '0.4s' }}>
-                        <CornerBrackets size="lg" animated>
-                            <button
-                                className="px-8 py-4 text-lg font-display tracking-widest text-text-cream bg-accent-rust border-2 border-accent-rust transition-all duration-250 hover:bg-accent-rust-light hover:border-accent-rust-light hover:shadow-[0_0_30px_var(--accent-rust-glow)] hover:-translate-y-0.5 max-[768px]:px-6 max-[768px]:py-3 max-[768px]:text-base"
-                                onClick={() => navigate('/training')}
-                            >
-                                Start Practice Session
-                            </button>
-                        </CornerBrackets>
+                    <div className="inline-block mb-10 animate-fade-in-up max-[768px]:mb-8" style={{ animationDelay: '0.5s' }}>
+                        <button
+                            className="px-8 py-4 text-lg font-display tracking-widest text-text-cream bg-accent-rust border-2 border-accent-rust transition-all duration-250 hover:bg-accent-rust-light hover:border-accent-rust-light hover:shadow-[0_0_30px_var(--accent-rust-glow)] hover:-translate-y-0.5 max-[768px]:px-6 max-[768px]:py-3 max-[768px]:text-base"
+                            onClick={() => navigate('/training')}
+                        >
+                            Start Practice Session
+                        </button>
                     </div>
 
                     {/* Minimal feature indicators */}
-                    <div className="flex justify-center gap-10 flex-wrap animate-fade-in-up max-[768px]:flex-col max-[768px]:gap-3" style={{ animationDelay: '0.6s' }}>
+                    <div className="flex justify-center gap-10 flex-wrap animate-fade-in-up max-[768px]:flex-col max-[768px]:gap-3" style={{ animationDelay: '0.7s' }}>
                         <div className="flex items-center gap-2">
                             <span className="text-accent-rust text-xs">◈</span>
                             <span className="font-mono text-xs tracking-wider text-text-muted uppercase">Computer Vision Analysis</span>
@@ -56,6 +60,13 @@ export default function LandingPage() {
                             <span className="text-accent-rust text-xs">◈</span>
                             <span className="font-mono text-xs tracking-wider text-text-muted uppercase">Realtime Feedback</span>
                         </div>
+                    </div>
+
+                    {/* Sponsor Credits */}
+                    <div className="mt-10 animate-fade-in-up" style={{ animationDelay: '0.9s' }}>
+                        <p className="font-mono text-xs tracking-widest text-text-dim uppercase">
+                            Powered by <span className="text-text-muted">Overshoot</span> and <span className="text-text-muted">LiveKit</span>
+                        </p>
                     </div>
                 </div>
             </main>
