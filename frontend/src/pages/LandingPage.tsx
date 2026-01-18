@@ -1,72 +1,37 @@
 import { useNavigate } from 'react-router-dom';
 import CornerBrackets from '../components/CornerBrackets';
-import { FloatingMetadata } from '../components/MetadataDisplay';
 import ThemeToggle from '../components/ThemeToggle';
 
 export default function LandingPage() {
     const navigate = useNavigate();
 
-    const currentDate = new Date().toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: '2-digit'
-    }).toUpperCase();
-
-    const currentTime = new Date().toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-    });
-
     return (
-        <div className="min-h-screen flex flex-col relative overflow-hidden bg-bg-primary">
-            {/* Theme toggle */}
-            <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100]">
+        <div className="h-screen flex flex-col relative overflow-hidden bg-bg-primary">
+            {/* Stationary theme toggle - top right within layout */}
+            <div className="absolute top-6 right-8 z-10">
                 <ThemeToggle />
             </div>
-            {/* Floating metadata overlays */}
-            <FloatingMetadata
-                position="top-left"
-                items={[
-                    { label: 'System Status', value: 'Online' },
-                    { label: 'Protocol', value: 'SURGICAL-v1.0' },
-                ]}
-            />
 
-            <FloatingMetadata
-                position="top-right"
-                items={[
-                    { label: 'Location', value: '40.7128° N, 74.0060° W' },
-                    { label: 'Date', value: currentDate },
-                    { label: 'Time', value: currentTime },
-                ]}
-            />
-
-            {/* Main content */}
-            <main className="flex-1 flex items-center justify-center px-8 py-24 relative z-[1] max-[768px]:py-12 max-[768px]:px-4">
+            {/* Main content - centered hero */}
+            <main className="flex-1 flex items-center justify-center px-8 relative z-[1]">
                 <div className="text-center max-w-[1000px]">
-                    {/* Pre-header - centered */}
-                    <div className="flex items-center justify-center gap-4 mb-8 animate-fade-in">
-                        <span className="font-mono text-xs tracking-widest text-accent-rust px-1 py-0.5 border border-border-subtle">[ NEXHACKS 2026 ]</span>
-                    </div>
-
                     {/* Main headline */}
-                    <h1 className="mb-8 leading-tight animate-fade-in-up">
-                        <span className="block text-[clamp(4rem,15vw,12rem)] text-text-cream drop-shadow-[0_0_60px_rgba(245,240,232,0.1)]">Your AI</span>
-                        <span className="block text-[clamp(4rem,15vw,12rem)] text-accent-rust drop-shadow-[0_0_80px_var(--accent-rust-glow)]">Surgical</span>
-                        <span className="block text-[clamp(4rem,15vw,12rem)] text-text-cream drop-shadow-[0_0_60px_rgba(245,240,232,0.1)]">Coach</span>
+                    <h1 className="mb-6 leading-tight animate-fade-in-up">
+                        <span className="block text-[clamp(2.5rem,10vw,7rem)] text-text-cream drop-shadow-[0_0_60px_rgba(245,240,232,0.1)]">Your AI</span>
+                        <span className="block text-[clamp(2.5rem,10vw,7rem)] text-accent-rust drop-shadow-[0_0_80px_var(--accent-rust-glow)]">Surgical</span>
+                        <span className="block text-[clamp(2.5rem,10vw,7rem)] text-text-cream drop-shadow-[0_0_60px_rgba(245,240,232,0.1)]">Coach</span>
                     </h1>
 
-                    {/* Subtext */}
-                    <p className="font-mono text-sm tracking-widest text-text-muted mb-12 uppercase animate-fade-in-up max-[768px]:text-xs max-[768px]:tracking-wider" style={{ animationDelay: '0.2s' }}>
+                    {/* Value proposition - one line */}
+                    <p className="font-mono text-sm tracking-widest text-text-muted mb-10 uppercase animate-fade-in-up max-[768px]:text-xs max-[768px]:tracking-wider" style={{ animationDelay: '0.2s' }}>
                         Real-time feedback. Any language. Just a webcam.
                     </p>
 
-                    {/* CTA */}
-                    <div className="inline-block mb-24 animate-fade-in-up max-[768px]:mb-16" style={{ animationDelay: '0.4s' }}>
+                    {/* Primary CTA - decisive and anchored */}
+                    <div className="inline-block mb-12 animate-fade-in-up max-[768px]:mb-8" style={{ animationDelay: '0.4s' }}>
                         <CornerBrackets size="lg" animated>
                             <button
-                                className="px-12 py-6 text-2xl font-display tracking-widest text-text-cream bg-accent-rust border-2 border-accent-rust transition-all duration-250 hover:bg-accent-rust-light hover:border-accent-rust-light hover:shadow-[0_0_25px_var(--accent-rust-glow)] hover:-translate-y-0.5 max-[768px]:px-8 max-[768px]:py-4 max-[768px]:text-base"
+                                className="px-12 py-6 text-2xl font-display tracking-widest text-text-cream bg-accent-rust border-2 border-accent-rust transition-all duration-250 hover:bg-accent-rust-light hover:border-accent-rust-light hover:shadow-[0_0_30px_var(--accent-rust-glow)] hover:-translate-y-0.5 max-[768px]:px-8 max-[768px]:py-4 max-[768px]:text-lg"
                                 onClick={() => navigate('/training')}
                             >
                                 Start Practice Session
@@ -74,8 +39,8 @@ export default function LandingPage() {
                         </CornerBrackets>
                     </div>
 
-                    {/* Features grid */}
-                    <div className="flex justify-center gap-12 flex-wrap animate-fade-in-up max-[768px]:flex-col max-[768px]:gap-4" style={{ animationDelay: '0.6s' }}>
+                    {/* Minimal feature indicators */}
+                    <div className="flex justify-center gap-10 flex-wrap animate-fade-in-up max-[768px]:flex-col max-[768px]:gap-3" style={{ animationDelay: '0.6s' }}>
                         <div className="flex items-center gap-2">
                             <span className="text-accent-rust text-xs">◈</span>
                             <span className="font-mono text-xs tracking-wider text-text-muted uppercase">Computer Vision Analysis</span>
@@ -92,123 +57,469 @@ export default function LandingPage() {
                 </div>
             </main>
 
-            {/* Bottom metadata bar */}
-            <footer className="px-8 py-6 border-t border-border-subtle relative z-[1]">
-                <div className="flex justify-between items-center max-w-[1200px] mx-auto max-[768px]:flex-col max-[768px]:gap-4 max-[768px]:text-center">
-                    <div className="text-text-dim">
-                        <span className="font-mono">SurgeonSight v1.0</span>
-                    </div>
+            {/* Subtle grid overlay */}
+            <div className="absolute inset-0 pointer-events-none opacity-[0.02] z-0 bg-[image:linear-gradient(var(--accent-rust)_1px,transparent_1px),linear-gradient(90deg,var(--accent-rust)_1px,transparent_1px)] bg-[size:80px_80px]" />
+
+            {/* Medical-themed ambient backdrop */}
+            <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
+                {/* Soft floating orbs */}
+                <div className="orb orb-1" />
+                <div className="orb orb-2" />
+                <div className="orb orb-3" />
+
+                {/* EKG Heartbeat Lines */}
+                <div className="ekg-container ekg-left">
+                    <svg className="ekg-line" viewBox="0 0 400 60" preserveAspectRatio="none">
+                        <path d="M0,30 L80,30 L90,30 L100,10 L110,50 L120,20 L130,40 L140,30 L200,30 L210,30 L220,5 L230,55 L240,15 L250,45 L260,30 L400,30" />
+                    </svg>
                 </div>
-            </footer>
-
-            {/* Decorative elements */}
-            <div className="absolute inset-0 pointer-events-none opacity-[0.03] z-0 bg-[image:linear-gradient(var(--accent-rust)_1px,transparent_1px),linear-gradient(90deg,var(--accent-rust)_1px,transparent_1px)] bg-[size:100px_100px] [data-theme='light']:opacity-[0.02]" />
-
-            {/* Dynamic backdrop - Medtech/AGI Theme */}
-            <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden [data-theme='light']:opacity-60">
-                {/* Floating orbs */}
-                <div className="absolute w-[600px] h-[600px] -top-[200px] -right-[100px] rounded-full blur-[80px] opacity-15 bg-[radial-gradient(circle,var(--accent-rust)_0%,transparent_70%)] animate-float1 [data-theme='light']:blur-[100px] [data-theme='light']:opacity-20" />
-                <div className="absolute w-[400px] h-[400px] -bottom-[100px] -left-[100px] rounded-full blur-[80px] opacity-15 bg-[radial-gradient(circle,var(--accent-rust-dark)_0%,transparent_70%)] animate-float2 [data-theme='light']:blur-[100px] [data-theme='light']:opacity-20" />
-                <div className="absolute w-[300px] h-[300px] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full blur-[80px] opacity-15 bg-[radial-gradient(circle,rgba(245,240,232,0.3)_0%,transparent_70%)] animate-float3 [data-theme='light']:blur-[100px] [data-theme='light']:opacity-20" />
-                <div className="absolute w-[200px] h-[200px] top-[60%] right-[30%] rounded-full blur-[60px] opacity-15 bg-[radial-gradient(circle,rgba(196,92,62,0.4)_0%,transparent_70%)] animate-float4 [data-theme='light']:blur-[100px] [data-theme='light']:opacity-20" />
-
-                {/* Horizontal scan lines */}
-                <div className="absolute h-px w-[200px] top-[20%] -left-[200px] opacity-30 bg-gradient-to-r from-transparent via-accent-rust-glow via-accent-rust to-transparent animate-lineFloat1 [data-theme='light']:opacity-20" />
-                <div className="absolute h-px w-[150px] top-[60%] -left-[150px] opacity-30 bg-gradient-to-r from-transparent via-accent-rust-glow via-accent-rust to-transparent animate-lineFloat2 [data-theme='light']:opacity-20" style={{ animationDelay: '3s' }} />
-                <div className="absolute h-px w-[100px] top-[40%] -left-[100px] opacity-30 bg-gradient-to-r from-transparent via-accent-rust-glow via-accent-rust to-transparent animate-lineFloat3 [data-theme='light']:opacity-20" style={{ animationDelay: '6s' }} />
-                <div className="absolute h-px w-[180px] top-[80%] -left-[180px] opacity-30 bg-gradient-to-r from-transparent via-accent-rust-glow via-accent-rust to-transparent animate-lineFloat1 [data-theme='light']:opacity-20" style={{ animationDelay: '2s' }} />
-                <div className="absolute h-px w-[120px] top-[15%] -left-[120px] opacity-30 bg-gradient-to-r from-transparent via-accent-rust-glow via-accent-rust to-transparent animate-lineFloat2 [data-theme='light']:opacity-20" style={{ animationDelay: '4s' }} />
-
-                {/* Pulse rings */}
-                <div className="absolute w-[100px] h-[100px] top-[30%] right-[15%] border border-accent-rust rounded-full opacity-0 animate-pulseRing [data-theme='light']:border-accent-rust-dark" />
-                <div className="absolute w-[80px] h-[80px] bottom-[25%] left-[10%] border border-accent-rust rounded-full opacity-0 animate-pulseRing [data-theme='light']:border-accent-rust-dark" style={{ animationDelay: '2s', animationDuration: '5s' }} />
-                <div className="absolute w-[120px] h-[120px] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 border border-accent-rust rounded-full opacity-0 animate-pulseRing [data-theme='light']:border-accent-rust-dark" style={{ animationDelay: '1s', animationDuration: '6s' }} />
+                <div className="ekg-container ekg-right">
+                    <svg className="ekg-line" viewBox="0 0 400 60" preserveAspectRatio="none">
+                        <path d="M0,30 L80,30 L90,30 L100,10 L110,50 L120,20 L130,40 L140,30 L200,30 L210,30 L220,5 L230,55 L240,15 L250,45 L260,30 L400,30" />
+                    </svg>
+                </div>
 
                 {/* DNA Helix */}
-                <div className="absolute right-[5%] top-[20%] h-[60%] flex flex-col gap-3 opacity-15 [data-theme='light']:opacity-10">
-                    {[...Array(12)].map((_, i) => (
-                        <div key={i} className="flex items-center gap-1 animate-dnaWave" style={{ animationDelay: `${i * 0.15}s` }}>
-                            <span className="w-2 h-2 rounded-full bg-accent-rust shadow-[0_0_10px_var(--accent-rust-glow)] animate-dnaNodeLeft" />
-                            <span className="w-[30px] h-0.5 bg-gradient-to-r from-accent-rust via-text-dim to-accent-rust opacity-50" />
-                            <span className="w-2 h-2 rounded-full bg-accent-rust shadow-[0_0_10px_var(--accent-rust-glow)] animate-dnaNodeRight" />
+                <div className="dna-helix">
+                    {[...Array(10)].map((_, i) => (
+                        <div key={i} className="dna-strand" style={{ animationDelay: `${i * 0.2}s` }}>
+                            <span className="dna-node dna-node-left" />
+                            <span className="dna-connector" />
+                            <span className="dna-node dna-node-right" />
                         </div>
                     ))}
                 </div>
 
-                {/* EKG Heartbeat Lines */}
-                <div className="absolute w-[300px] h-10 bottom-[30%] left-[5%] overflow-hidden opacity-25 [data-theme='light']:opacity-15">
-                    <svg className="w-[200%] h-full animate-ekgPulse" viewBox="0 0 400 60" preserveAspectRatio="none">
-                        <path className="fill-none stroke-accent-rust stroke-2 stroke-linecap-round stroke-linejoin-round drop-shadow-[0_0_4px_var(--accent-rust-glow)]" d="M0,30 L80,30 L90,30 L100,10 L110,50 L120,20 L130,40 L140,30 L200,30 L210,30 L220,5 L230,55 L240,15 L250,45 L260,30 L400,30" />
-                    </svg>
+                {/* Pulse Rings */}
+                <div className="pulse-ring pulse-ring-1" />
+                <div className="pulse-ring pulse-ring-2" />
+                <div className="pulse-ring pulse-ring-3" />
+
+                {/* Surgical Crosshair */}
+                <div className="crosshair crosshair-1">
+                    <div className="crosshair-h" />
+                    <div className="crosshair-v" />
+                    <div className="crosshair-circle" />
                 </div>
-                <div className="absolute w-[300px] h-10 top-[15%] right-[20%] overflow-hidden opacity-25 -scale-x-100 [data-theme='light']:opacity-15">
-                    <svg className="w-[200%] h-full animate-ekgPulse" viewBox="0 0 400 60" preserveAspectRatio="none">
-                        <path className="fill-none stroke-accent-rust stroke-2 stroke-linecap-round stroke-linejoin-round drop-shadow-[0_0_4px_var(--accent-rust-glow)]" d="M0,30 L80,30 L90,30 L100,10 L110,50 L120,20 L130,40 L140,30 L200,30 L210,30 L220,5 L230,55 L240,15 L250,45 L260,30 L400,30" />
-                    </svg>
+                <div className="crosshair crosshair-2">
+                    <div className="crosshair-h" />
+                    <div className="crosshair-v" />
+                    <div className="crosshair-circle" />
                 </div>
 
-                {/* Neural Network Nodes */}
-                <div className="absolute left-[3%] top-[15%] w-[25%] h-[50%] opacity-12 [data-theme='light']:opacity-8">
+                {/* Floating Medical Particles */}
+                <div className="particles">
                     {[...Array(15)].map((_, i) => (
-                        <div
-                            key={i}
-                            className="absolute w-2.5 h-2.5 bg-accent-rust rounded-full shadow-[0_0_15px_var(--accent-rust-glow)] animate-neuralPulse"
-                            style={{
-                                left: `${10 + (i % 5) * 20}%`,
-                                top: `${20 + Math.floor(i / 5) * 25}%`,
-                                animationDelay: `${i * 0.3}s`
-                            }}
-                        />
-                    ))}
-                    <svg className="absolute w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-                        <line x1="10" y1="20" x2="30" y2="45" className="stroke-accent-rust stroke-[0.5] opacity-0 animate-neuralFire" style={{ animationDelay: '0s' }} />
-                        <line x1="30" y1="20" x2="50" y2="45" className="stroke-accent-rust stroke-[0.5] opacity-0 animate-neuralFire" style={{ animationDelay: '0.5s' }} />
-                        <line x1="50" y1="20" x2="70" y2="45" className="stroke-accent-rust stroke-[0.5] opacity-0 animate-neuralFire" style={{ animationDelay: '1s' }} />
-                        <line x1="70" y1="20" x2="90" y2="45" className="stroke-accent-rust stroke-[0.5] opacity-0 animate-neuralFire" style={{ animationDelay: '1.5s' }} />
-                        <line x1="30" y1="45" x2="50" y2="70" className="stroke-accent-rust stroke-[0.5] opacity-0 animate-neuralFire" style={{ animationDelay: '2s' }} />
-                        <line x1="50" y1="45" x2="70" y2="70" className="stroke-accent-rust stroke-[0.5] opacity-0 animate-neuralFire" style={{ animationDelay: '2.5s' }} />
-                    </svg>
-                </div>
-
-                {/* Data Streams */}
-                <div className="absolute right-[12%] top-[10%] flex flex-col gap-5 animate-dataStreamFloat">
-                    {[...Array(5)].map((_, i) => (
-                        <span key={i} className="w-0.5 h-4 bg-gradient-to-b from-transparent via-accent-rust to-transparent opacity-0 animate-dataBitFall" style={{ animationDelay: `${i * 0.2}s` }} />
-                    ))}
-                </div>
-                <div className="absolute left-[8%] bottom-[20%] flex flex-col gap-5 animate-dataStreamFloatReverse" style={{ animationDelay: '3s' }}>
-                    {[...Array(4)].map((_, i) => (
-                        <span key={i} className="w-0.5 h-4 bg-gradient-to-b from-transparent via-accent-rust to-transparent opacity-0 animate-dataBitFall" style={{ animationDelay: `${i * 0.2}s` }} />
-                    ))}
-                </div>
-                <div className="absolute right-[25%] bottom-[35%] flex flex-col gap-5 animate-dataStreamFloat" style={{ animationDelay: '6s' }}>
-                    {[...Array(6)].map((_, i) => (
-                        <span key={i} className="w-0.5 h-4 bg-gradient-to-b from-transparent via-accent-rust to-transparent opacity-0 animate-dataBitFall" style={{ animationDelay: `${i * 0.2}s` }} />
-                    ))}
-                </div>
-
-                {/* Hexagonal Grid */}
-                <div className="absolute bottom-[10%] right-[8%] grid grid-cols-4 gap-2 opacity-10 -rotate-[15deg] [data-theme='light']:opacity-8" style={{ width: 'auto' }}>
-                    {[...Array(8)].map((_, i) => (
-                        <div key={i} className="w-10 h-[46px] bg-transparent relative animate-hexPulse" style={{ animationDelay: `${i * 0.4}s`, clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)', border: '1px solid var(--accent-rust)' }} />
-                    ))}
-                </div>
-
-                {/* Floating particles */}
-                <div className="absolute inset-0 w-full h-full overflow-hidden">
-                    {[...Array(20)].map((_, i) => (
                         <span
                             key={i}
-                            className="absolute w-0.5 h-0.5 bg-accent-rust rounded-full bottom-[-10px] opacity-0 animate-particleRise [data-theme='light']:bg-accent-rust-dark"
+                            className="particle"
                             style={{
-                                left: `${Math.random() * 100}%`,
-                                animationDuration: `${8 + Math.random() * 12}s`,
-                                animationDelay: `${Math.random() * 5}s`
+                                left: `${5 + (i * 6.5)}%`,
+                                animationDuration: `${10 + Math.random() * 8}s`,
+                                animationDelay: `${i * 0.5}s`
                             }}
                         />
                     ))}
                 </div>
+
+                {/* Vital Signs Monitor Lines */}
+                <div className="vital-line vital-line-1" />
+                <div className="vital-line vital-line-2" />
+                <div className="vital-line vital-line-3" />
+
+                {/* Molecular Structure */}
+                <div className="molecule molecule-1">
+                    <div className="atom atom-center" />
+                    <div className="atom atom-orbit atom-1" />
+                    <div className="atom atom-orbit atom-2" />
+                    <div className="atom atom-orbit atom-3" />
+                    <div className="bond bond-1" />
+                    <div className="bond bond-2" />
+                    <div className="bond bond-3" />
+                </div>
+                <div className="molecule molecule-2">
+                    <div className="atom atom-center" />
+                    <div className="atom atom-orbit atom-1" />
+                    <div className="atom atom-orbit atom-2" />
+                    <div className="bond bond-1" />
+                    <div className="bond bond-2" />
+                </div>
             </div>
+
+            {/* Medical animation styles */}
+            <style>{`
+                /* Floating Orbs */
+                .orb {
+                    position: absolute;
+                    border-radius: 50%;
+                    filter: blur(80px);
+                    opacity: 0.12;
+                    background: radial-gradient(circle, var(--accent-rust) 0%, transparent 70%);
+                }
+                .orb-1 {
+                    width: 500px; height: 500px;
+                    top: -150px; right: -100px;
+                    animation: float1 18s ease-in-out infinite;
+                }
+                .orb-2 {
+                    width: 400px; height: 400px;
+                    bottom: -100px; left: -100px;
+                    background: radial-gradient(circle, var(--accent-rust-dark) 0%, transparent 70%);
+                    animation: float2 22s ease-in-out infinite;
+                }
+                .orb-3 {
+                    width: 300px; height: 300px;
+                    top: 50%; left: 50%;
+                    transform: translate(-50%, -50%);
+                    opacity: 0.08;
+                    animation: float3 25s ease-in-out infinite;
+                }
+
+                /* EKG Lines */
+                .ekg-container {
+                    position: absolute;
+                    width: 300px;
+                    height: 50px;
+                    overflow: hidden;
+                    opacity: 0.2;
+                }
+                .ekg-left {
+                    bottom: 25%;
+                    left: 5%;
+                }
+                .ekg-right {
+                    top: 20%;
+                    right: 5%;
+                    transform: scaleX(-1);
+                }
+                .ekg-line {
+                    width: 200%;
+                    height: 100%;
+                    animation: ekgPulse 4s linear infinite;
+                }
+                .ekg-line path {
+                    fill: none;
+                    stroke: var(--accent-rust);
+                    stroke-width: 2;
+                    stroke-linecap: round;
+                    stroke-linejoin: round;
+                    filter: drop-shadow(0 0 4px var(--accent-rust-glow));
+                }
+
+                /* DNA Helix */
+                .dna-helix {
+                    position: absolute;
+                    right: 8%;
+                    top: 20%;
+                    height: 55%;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 12px;
+                    opacity: 0.15;
+                }
+                .dna-strand {
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                    animation: dnaWave 3s ease-in-out infinite;
+                }
+                .dna-node {
+                    width: 8px;
+                    height: 8px;
+                    border-radius: 50%;
+                    background: var(--accent-rust);
+                    box-shadow: 0 0 10px var(--accent-rust-glow);
+                }
+                .dna-node-left { animation: dnaNodeLeft 3s ease-in-out infinite; }
+                .dna-node-right { animation: dnaNodeRight 3s ease-in-out infinite; }
+                .dna-connector {
+                    width: 30px;
+                    height: 2px;
+                    background: linear-gradient(to right, var(--accent-rust), var(--text-dim), var(--accent-rust));
+                    opacity: 0.5;
+                }
+
+                /* Pulse Rings */
+                .pulse-ring {
+                    position: absolute;
+                    border: 1px solid var(--accent-rust);
+                    border-radius: 50%;
+                    opacity: 0;
+                }
+                .pulse-ring-1 {
+                    width: 120px; height: 120px;
+                    top: 50%; left: 50%;
+                    transform: translate(-50%, -50%);
+                    animation: pulseRing 6s ease-out infinite;
+                }
+                .pulse-ring-2 {
+                    width: 80px; height: 80px;
+                    top: 30%; left: 15%;
+                    animation: pulseRing 7s ease-out infinite 2s;
+                }
+                .pulse-ring-3 {
+                    width: 100px; height: 100px;
+                    bottom: 25%; right: 20%;
+                    animation: pulseRing 5s ease-out infinite 1s;
+                }
+
+                /* Surgical Crosshairs */
+                .crosshair {
+                    position: absolute;
+                    width: 60px;
+                    height: 60px;
+                    opacity: 0.15;
+                }
+                .crosshair-1 {
+                    top: 35%;
+                    left: 12%;
+                    animation: crosshairFloat 8s ease-in-out infinite;
+                }
+                .crosshair-2 {
+                    bottom: 30%;
+                    right: 15%;
+                    animation: crosshairFloat 10s ease-in-out infinite 3s;
+                }
+                .crosshair-h, .crosshair-v {
+                    position: absolute;
+                    background: var(--accent-rust);
+                }
+                .crosshair-h {
+                    width: 100%;
+                    height: 1px;
+                    top: 50%;
+                }
+                .crosshair-v {
+                    width: 1px;
+                    height: 100%;
+                    left: 50%;
+                }
+                .crosshair-circle {
+                    position: absolute;
+                    width: 40px;
+                    height: 40px;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    border: 1px solid var(--accent-rust);
+                    border-radius: 50%;
+                }
+
+                /* Floating Particles */
+                .particles {
+                    position: absolute;
+                    inset: 0;
+                    overflow: hidden;
+                }
+                .particle {
+                    position: absolute;
+                    width: 3px;
+                    height: 3px;
+                    background: var(--accent-rust);
+                    border-radius: 50%;
+                    bottom: -10px;
+                    opacity: 0;
+                    animation: particleRise 12s ease-out infinite;
+                }
+
+                /* Vital Sign Lines */
+                .vital-line {
+                    position: absolute;
+                    height: 1px;
+                    background: linear-gradient(90deg, transparent, var(--accent-rust), transparent);
+                    opacity: 0.2;
+                }
+                .vital-line-1 {
+                    width: 150px;
+                    top: 15%;
+                    left: -150px;
+                    animation: vitalScan 12s linear infinite;
+                }
+                .vital-line-2 {
+                    width: 100px;
+                    top: 45%;
+                    left: -100px;
+                    animation: vitalScan 15s linear infinite 4s;
+                }
+                .vital-line-3 {
+                    width: 120px;
+                    top: 75%;
+                    left: -120px;
+                    animation: vitalScan 10s linear infinite 8s;
+                }
+
+                /* Molecular Structure */
+                .molecule {
+                    position: absolute;
+                    opacity: 0.12;
+                }
+                .molecule-1 {
+                    width: 80px;
+                    height: 80px;
+                    left: 8%;
+                    top: 25%;
+                    animation: moleculeFloat 15s ease-in-out infinite;
+                }
+                .molecule-2 {
+                    width: 60px;
+                    height: 60px;
+                    right: 25%;
+                    bottom: 15%;
+                    animation: moleculeFloat 18s ease-in-out infinite 5s;
+                }
+                .atom {
+                    position: absolute;
+                    border-radius: 50%;
+                    background: var(--accent-rust);
+                    box-shadow: 0 0 8px var(--accent-rust-glow);
+                }
+                .atom-center {
+                    width: 12px;
+                    height: 12px;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                }
+                .atom-orbit {
+                    width: 8px;
+                    height: 8px;
+                }
+                .atom-1 { top: 0; left: 50%; transform: translateX(-50%); animation: atomPulse 2s ease-in-out infinite; }
+                .atom-2 { bottom: 10%; left: 10%; animation: atomPulse 2s ease-in-out infinite 0.5s; }
+                .atom-3 { bottom: 10%; right: 10%; animation: atomPulse 2s ease-in-out infinite 1s; }
+                .bond {
+                    position: absolute;
+                    height: 1px;
+                    background: var(--accent-rust);
+                    opacity: 0.5;
+                    top: 50%;
+                    left: 50%;
+                    transform-origin: left center;
+                }
+                .bond-1 { width: 30px; transform: rotate(-90deg) translateY(-50%); }
+                .bond-2 { width: 30px; transform: rotate(150deg) translateY(-50%); }
+                .bond-3 { width: 30px; transform: rotate(30deg) translateY(-50%); }
+
+                /* Keyframe Animations */
+                @keyframes float1 {
+                    0%, 100% { transform: translate(0, 0) scale(1); }
+                    50% { transform: translate(-30px, 25px) scale(1.05); }
+                }
+                @keyframes float2 {
+                    0%, 100% { transform: translate(0, 0) scale(1); }
+                    50% { transform: translate(25px, -30px) scale(1.03); }
+                }
+                @keyframes float3 {
+                    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.08; }
+                    50% { transform: translate(-50%, -50%) scale(1.15); opacity: 0.12; }
+                }
+                @keyframes ekgPulse {
+                    0% { transform: translateX(0); }
+                    100% { transform: translateX(-50%); }
+                }
+                @keyframes dnaWave {
+                    0%, 100% { transform: translateX(0); }
+                    50% { transform: translateX(8px); }
+                }
+                @keyframes dnaNodeLeft {
+                    0%, 100% { transform: scale(1); }
+                    50% { transform: scale(1.3); }
+                }
+                @keyframes dnaNodeRight {
+                    0%, 100% { transform: scale(1.3); }
+                    50% { transform: scale(1); }
+                }
+                @keyframes pulseRing {
+                    0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.4; }
+                    100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
+                }
+                @keyframes crosshairFloat {
+                    0%, 100% { transform: translate(0, 0) rotate(0deg); opacity: 0.15; }
+                    25% { opacity: 0.25; }
+                    50% { transform: translate(10px, -10px) rotate(5deg); opacity: 0.15; }
+                    75% { opacity: 0.25; }
+                }
+                @keyframes particleRise {
+                    0% { transform: translateY(0) scale(0); opacity: 0; }
+                    10% { opacity: 0.6; transform: scale(1); }
+                    90% { opacity: 0.3; }
+                    100% { transform: translateY(-100vh) scale(0.5); opacity: 0; }
+                }
+                @keyframes vitalScan {
+                    0% { left: -150px; opacity: 0; }
+                    10% { opacity: 0.25; }
+                    90% { opacity: 0.25; }
+                    100% { left: 100%; opacity: 0; }
+                }
+                @keyframes moleculeFloat {
+                    0%, 100% { transform: translate(0, 0) rotate(0deg); }
+                    25% { transform: translate(5px, -8px) rotate(10deg); }
+                    50% { transform: translate(-5px, -5px) rotate(-5deg); }
+                    75% { transform: translate(-8px, 5px) rotate(5deg); }
+                }
+                @keyframes atomPulse {
+                    0%, 100% { transform: scale(1); opacity: 1; }
+                    50% { transform: scale(1.2); opacity: 0.7; }
+                }
+
+                /* Light Mode Overrides - More prominent animations */
+                [data-theme="light"] .orb {
+                    opacity: 0.25;
+                    filter: blur(100px);
+                }
+                [data-theme="light"] .orb-3 {
+                    opacity: 0.18;
+                }
+                [data-theme="light"] .ekg-container {
+                    opacity: 0.4;
+                }
+                [data-theme="light"] .ekg-line path {
+                    stroke: var(--accent-rust-dark);
+                    stroke-width: 2.5;
+                }
+                [data-theme="light"] .dna-helix {
+                    opacity: 0.3;
+                }
+                [data-theme="light"] .dna-node {
+                    background: var(--accent-rust-dark);
+                    box-shadow: 0 0 12px var(--accent-rust-glow);
+                }
+                [data-theme="light"] .crosshair {
+                    opacity: 0.3;
+                }
+                [data-theme="light"] .crosshair-h,
+                [data-theme="light"] .crosshair-v {
+                    background: var(--accent-rust-dark);
+                }
+                [data-theme="light"] .crosshair-circle {
+                    border-color: var(--accent-rust-dark);
+                    border-width: 2px;
+                }
+                [data-theme="light"] .pulse-ring {
+                    border-color: var(--accent-rust-dark);
+                    border-width: 2px;
+                }
+                [data-theme="light"] .molecule {
+                    opacity: 0.25;
+                }
+                [data-theme="light"] .atom {
+                    background: var(--accent-rust-dark);
+                    box-shadow: 0 0 12px var(--accent-rust-glow);
+                }
+                [data-theme="light"] .bond {
+                    background: var(--accent-rust-dark);
+                    opacity: 0.7;
+                }
+                [data-theme="light"] .particle {
+                    background: var(--accent-rust-dark);
+                    width: 4px;
+                    height: 4px;
+                }
+                [data-theme="light"] .vital-line {
+                    opacity: 0.35;
+                    background: linear-gradient(90deg, transparent, var(--accent-rust-dark), transparent);
+                }
+            `}</style>
         </div>
     );
 }
