@@ -284,7 +284,6 @@ export function extractKeyConcepts(notes: string[]): string[] {
     if (concepts.length >= 8) break;
     
     const lower = log.toLowerCase();
-    const words = log.split(/\s+/);
     
     // Find theme keyword
     let themeKey: string | null = null;
@@ -397,41 +396,62 @@ export function extractKeyConcepts(notes: string[]): string[] {
 }
 
 /**
- * Extract 3-6 Notable Moments from notes with timestamps.
+ * Extract 0-5 Notable Moments from notes with timestamps.
  * 
  * Requirements:
- * - 3-6 items
+ * - 0-5 items (not forced to have moments)
  * - Timestamps come from video.currentTime (attached in code, not from model)
  * - Format: "mm:ss – <insight>" if timestamp exists
  * - Do NOT trust model-provided timestamps (they may be hallucinated)
- * - Prefer MOMENT type notes, but include LOG notes if interesting
+ * - Promote logs with strong surgical keywords (hemostasis, cautery, dissection plane, etc.)
+ * 
+ * Strategy:
+ * - Look for logs containing important surgical technique keywords
+ * - Promote those to "Notable Moments" with their code-attached timestamps
+ * - Dedupe aggressively to avoid repetition
  * 
  * Notes format: Array of objects { text: string, timestamp: number, type: 'LOG' | 'MOMENT' } or strings
  */
 export function extractNotableMoments(notes: (string | { text: string; timestamp?: number; type?: 'LOG' | 'MOMENT' })[]): string[] {
   if (notes.length === 0) return [];
   
-  // Extract notable moments: prefer MOMENT type with code-attached timestamps
-  const moments: Array<{ text: string; timestamp: number; priority: number }> = [];
+  // Strong surgical keywords that indicate notable technique moments
+  // These keywords signal important surgical actions or techniques worth highlighting
+  const notableKeywords = [
+    'hemostasis', 'cautery', 'bipolar', 'electrocautery',
+    'dissection plane', 'tissue plane', 'surgical plane',
+    'counter-traction', 'counter traction', 'counterpressure',
+    'vessel', 'vascular', 'artery', 'vein', 'bleeding',
+    'clip', 'hemoclip', 'vascular clip',
+    'suture', 'suturing', 'stitch', 'knot', 'tying',
+    'needle driver', 'needle holder', 'needledriver',
+    'exposure', 'critical exposure', 'visualization',
+    'retraction', 'strategic retraction', 'tissue retraction',
+    'ligation', 'tying off', 'securing',
+    'dissection', 'sharp dissection', 'blunt dissection',
+    'incision', 'key incision', 'entry point',
+    'anastomosis', 'reconstruction',
+    'error-prevention', 'avoiding', 'preventing',
+    'critical', 'significant', 'important technique',
+  ];
+  
+  const moments: Array<{ text: string; timestamp: number; score: number }> = [];
   const seen = new Set<string>();
   
-  // Process notes: prioritize MOMENT type, then LOG type with timestamps
+  // Process notes: promote logs with notable keywords to moments
   for (const note of notes) {
     let text: string;
     let timestamp: number | undefined;
-    let type: 'LOG' | 'MOMENT' = 'LOG';
     
     if (typeof note === 'object') {
       text = note.text;
       timestamp = note.timestamp;
-      type = note.type || 'LOG';
     } else {
       text = note;
-      // Try to parse MOMENT from text
+      // Parse MOMENT from text if present (though we'll prioritize keyword-based promotion)
       const parsed = parseOvershootOutput(text);
       if (parsed.moments.length > 0) {
         text = parsed.moments[0];
-        type = 'MOMENT';
       }
     }
     
@@ -443,40 +463,41 @@ export function extractNotableMoments(notes: (string | { text: string; timestamp
     const normalized = normalize(text);
     if (seen.has(normalized)) continue;
     
-    // Only include if we have a valid timestamp (code-attached)
-    if (timestamp !== undefined && timestamp > 0) {
-      // Priority: MOMENT type = 1, LOG type = 2
-      const priority = type === 'MOMENT' ? 1 : 2;
-      moments.push({ text, timestamp, priority });
+    // Only include if we have a valid timestamp (code-attached, never from model)
+    if (timestamp === undefined || timestamp <= 0) continue;
+    
+    // Score based on notable keyword matches (higher score = more notable)
+    const lowerText = text.toLowerCase();
+    let score = 0;
+    for (const keyword of notableKeywords) {
+      if (lowerText.includes(keyword.toLowerCase())) {
+        score += 1;
+      }
+    }
+    
+    // Promote logs with at least one notable keyword (score > 0)
+    // Or all logs if we have very few notes (fallback)
+    if (score > 0 || notes.length < 3) {
+      moments.push({ text, timestamp, score });
       seen.add(normalized);
     }
   }
   
-  // Sort by priority (MOMENT first), then by timestamp
+  // Sort by score (higher = more notable keywords), then by timestamp
   moments.sort((a, b) => {
-    if (a.priority !== b.priority) return a.priority - b.priority;
-    return a.timestamp - b.timestamp;
+    if (a.score !== b.score) return b.score - a.score; // Higher score first
+    return a.timestamp - b.timestamp; // Then by chronological order
   });
   
-  // Format and return 3-6 moments with timestamps
+  // Format and return 0-5 moments with timestamps (code-attached only)
   const formattedMoments = moments
-    .slice(0, 6) // Max 6 moments
+    .slice(0, 5) // Max 5 moments as per requirement
     .map(({ text, timestamp }) => {
       const timeStr = formatTimestamp(timestamp);
       return `${timeStr} – ${text}`;
     });
   
-  // Ensure at least 3 moments if we have enough notes
-  if (formattedMoments.length < 3 && moments.length >= 3) {
-    // Include more LOG notes if needed
-    const remaining = moments.slice(formattedMoments.length, 3);
-    for (const { text, timestamp } of remaining) {
-      const timeStr = formatTimestamp(timestamp);
-      formattedMoments.push(`${timeStr} – ${text}`);
-    }
-  }
-  
-  return formattedMoments.slice(0, 6);
+  return formattedMoments; // Can be 0-5 items
 }
 
 /**

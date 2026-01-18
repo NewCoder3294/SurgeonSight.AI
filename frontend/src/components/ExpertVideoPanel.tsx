@@ -16,30 +16,37 @@ interface ExpertVideoPanelProps {
 /**
  * Overshoot Prompt - Strict format for Part 1
  * 
- * Outputs ONLY:
- * - LOG: <one sentence, 12-20 words, includes instrument + action + teaching insight>
- * - MOMENT: <one sentence, 12-20 words, highlights "aha" technique or error-prevention>
- * 
- * Each observation must include: technique + instrument + action + why it matters.
+ * Enforces sparse, technical output with meaningful technique changes only.
  * Throttling: Notes are accepted only if at least 3 seconds have passed since last accepted note.
  * See flushResults() function and lastAcceptedTimeRef for throttling logic.
  */
-const ANALYSIS_PROMPT = `You are an expert surgical instructor observing a procedure video.
+const ANALYSIS_PROMPT = `You are a surgical instructor annotating a procedure video.
+
 STRICT RULES:
-- Output at most ONE item every 3–5 seconds.
-- Each item must be ONE sentence, 12–20 words.
-- MUST include: technique + instrument/tool + action + why it matters.
-  Example: "Surgeon uses scissor grip with forceps to control tissue tension, preventing accidental tearing during dissection."
-- Use specific surgical terms: instrument names (forceps, scalpel, retractor, scissors), techniques (pencil grip, palm grip, two-handed), actions (retraction, dissection, cauterization, suturing).
-- Do NOT restate previous observations. Output only when a new, distinct technique point appears.
-- Do NOT include timestamps in output text (they will be attached automatically).
-- No markdown, no bullets, no numbering.
+- Output ONLY when a technique meaningfully changes.
+- Output at most ONE sentence every 3–5 seconds.
+- ONE sentence, 14–20 words.
+
+Each sentence MUST include:
+- instrument
+- grip or hand posture
+- action
+- technical reason (why it matters)
+
+DO NOT repeat:
+- wrist stability unless posture visibly changes
+- retraction unless direction or force changes
+
+DO NOT describe static states.
+DO NOT summarize.
+DO NOT include timestamps.
+DO NOT use generic phrases.
 
 FORMAT:
-LOG: <one sentence, 12–20 words, technique + instrument + action + teaching insight>
-MOMENT: <one sentence, 12–20 words, highlights "aha" technique, error-prevention, or critical moment>
+LOG: <sentence>
 
-Begin.`;
+Only output if something NEW is observed.
+Otherwise remain silent.`;
 
 export default function ExpertVideoPanel({
   isAnalyzing,
@@ -64,7 +71,8 @@ export default function ExpertVideoPanel({
   
   // Throttling: Queue incoming Overshoot messages and flush to UI on interval
   // MIN_TIME_BETWEEN_NOTES_MS: Minimum time (3-5 seconds) between accepting new notes
-  const MIN_TIME_BETWEEN_NOTES_MS = 3000; // 3 seconds minimum
+  // To tune throttling: Adjust MIN_TIME_BETWEEN_NOTES_MS (higher = more sparse, lower = more frequent)
+  const MIN_TIME_BETWEEN_NOTES_MS = 3000; // 3 seconds minimum (target: 3-5 seconds)
   const FLUSH_INTERVAL_MS = 1000; // Check queue every 1 second, but only accept if enough time passed
   const messageQueueRef = useRef<string[]>([]);
   const flushIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);

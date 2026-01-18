@@ -10,8 +10,6 @@ import { startSession, endSession } from '../utils/api';
 import { createMetricsWindow, addMetric, computeSummary, computeFrameDifference } from '../utils/reproMetrics';
 import type { MotionMetrics } from '../utils/reproMetrics';
 import { FeedbackGenerator } from '../utils/reproFeedback';
-import { generateCoachSummary } from '../utils/reproCoach';
-import type { CoachSummary } from '../utils/reproCoach';
 
 // Demo feedback messages (fallback when backend not available)
 const DEMO_FEEDBACK = [
@@ -37,7 +35,6 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
     const [isAnalyzing, setIsAnalyzing] = useState(true);
     const [currentFeedback, setCurrentFeedback] = useState<any>(null);
     const [feedbackHistory, setFeedbackHistory] = useState<any[]>([]);
-    const [coachSummary, setCoachSummary] = useState<CoachSummary | null>(null);
     const [detectionBox, setDetectionBox] = useState<any>(null);
     const [hands] = useState<any[]>([]); // eslint-disable-line @typescript-eslint/no-unused-vars
     const [currentGrip] = useState<any>(null); // eslint-disable-line @typescript-eslint/no-unused-vars
@@ -55,7 +52,6 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
     const frameCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const prevFrameRef = useRef<ImageData | null>(null);
     const frameIntervalRef = useRef<any>(null);
-    const coachIntervalRef = useRef<any>(null);
     const lastFrameTimeRef = useRef<number>(0);
 
     // Voice feedback hook
@@ -63,15 +59,23 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
 
     // Handle incoming feedback from backend
     const handleBackendFeedback = useCallback((data: any) => {
+        // Map backend category to status (or infer from message tone)
+        let status: 'ON_TRACK' | 'WARNING' | 'CRITICAL' = 'ON_TRACK';
+        if (data.category === 'correction' || data.category === 'warning') {
+            status = 'WARNING';
+        } else if (data.category === 'critical' || data.category === 'error') {
+            status = 'CRITICAL';
+        }
+
         const feedback = {
-            type: data.category,
+            status,
             message: data.message,
             timestamp: data.timestamp,
             id: Date.now(),
         };
 
         setCurrentFeedback(feedback);
-        setFeedbackHistory(prev => [...prev, feedback]);
+        setFeedbackHistory(prev => [...prev.slice(-4), feedback]); // Keep last 5 for minimal trail
         setIsAnalyzing(false);
         setTimeout(() => setIsAnalyzing(true), 500);
 
@@ -145,14 +149,20 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
     const triggerDemoFeedback = useCallback(() => {
         if (feedbackIndex >= DEMO_FEEDBACK.length) return;
 
+        const demoFeedback = DEMO_FEEDBACK[feedbackIndex];
+        // Map demo type to status
+        const status: 'ON_TRACK' | 'WARNING' | 'CRITICAL' = 
+            demoFeedback.type === 'correction' ? 'WARNING' : 'ON_TRACK';
+
         const feedback = {
-            ...DEMO_FEEDBACK[feedbackIndex],
+            status,
+            message: demoFeedback.message,
             timestamp: sessionTime,
             id: Date.now(),
         };
 
         setCurrentFeedback(feedback);
-        setFeedbackHistory(prev => [...prev, feedback]);
+        setFeedbackHistory(prev => [...prev.slice(-4), feedback]); // Keep last 5 for minimal trail
         setFeedbackIndex(prev => prev + 1);
         setIsAnalyzing(false);
         setTimeout(() => setIsAnalyzing(true), 500);
@@ -261,20 +271,16 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
                 });
 
                 if (feedback) {
-                    // Map Feedback status to feedback type for UI compatibility
-                    const feedbackType = feedback.status === 'CRITICAL' ? 'correction' :
-                                        feedback.status === 'WARNING' ? 'correction' : 
-                                        'encouragement';
-
+                    // Pass status directly to UI (ON_TRACK, WARNING, CRITICAL)
                     const uiFeedback = {
-                        type: feedbackType,
+                        status: feedback.status, // ON_TRACK, WARNING, or CRITICAL
                         message: feedback.text,
                         timestamp: feedback.timestamp / 1000, // Convert to seconds
                         id: feedback.timestamp,
                     };
 
                     setCurrentFeedback(uiFeedback);
-                    setFeedbackHistory(prev => [...prev.slice(-7), uiFeedback]); // Keep last 8
+                    setFeedbackHistory(prev => [...prev.slice(-4), uiFeedback]); // Keep last 5 for minimal trail
 
                     // Speak feedback
                     speakWithWebSpeech(feedback.text);
@@ -294,23 +300,7 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
         };
     }, [videoFeedRef, speakWithWebSpeech]);
 
-    // Slow loop: Coach summary every 5-8 seconds
-    useEffect(() => {
-        const interval = 6000; // 6 seconds
-        coachIntervalRef.current = setInterval(async () => {
-            const summary = computeSummary(metricsWindowRef.current);
-            if (summary) {
-                const coach = await generateCoachSummary(summary);
-                setCoachSummary(coach);
-            }
-        }, interval);
-
-        return () => {
-            if (coachIntervalRef.current) {
-                clearInterval(coachIntervalRef.current);
-            }
-        };
-    }, []);
+    // Coach summary removed - Part 2 focuses on single concise feedback only
 
     // Demo mode: Periodic feedback (when backend not connected) - keep as fallback
     useEffect(() => {
@@ -375,8 +365,8 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
 
             {/* Main content */}
             <main className="flex-1 flex flex-col gap-6 max-[1000px]:gap-4">
-                <div className="grid grid-cols-[2fr_3fr] gap-6 w-full mx-auto max-[1000px]:grid-cols-1">
-                    {/* Left: Video feed (slightly smaller) */}
+                <div className="grid grid-cols-[1.2fr_1fr] gap-6 w-full mx-auto max-[1000px]:grid-cols-1">
+                    {/* Left: Video feed (moderate size, not dominant) */}
                     <div className="relative flex flex-col bg-black/20 rounded-lg overflow-hidden border border-white/5">
                         <CornerBrackets size="xl" animated>
                             <VideoFeed
@@ -388,56 +378,44 @@ export default function CoachingSession({ embedded = false }: { embedded?: boole
                         </CornerBrackets>
                     </div>
 
-                    {/* Right: Stacked Current Feedback + AI Coach */}
-                    <div className="flex flex-col gap-4">
-                        {/* Current Feedback - dominant card */}
+                    {/* Right: Single Live Feedback Panel */}
+                    <div className="flex flex-col">
                         <div className="bg-bg-secondary border border-border-subtle p-4 flex-1 flex flex-col min-h-[200px]">
-                            <h3 className="text-sm tracking-widest mb-4 pb-1 border-b border-border-subtle text-text-muted">Current Feedback</h3>
+                            <h3 className="text-xs tracking-widest mb-3 pb-1 border-b border-border-subtle text-text-muted uppercase">Live Feedback</h3>
                             <FeedbackDisplay feedback={currentFeedback} />
                             {isSpeaking && (
-                                <div className="flex items-center gap-2 mt-2 px-1 py-0.5 bg-bg-tertiary font-mono text-xs tracking-wider text-accent-rust">
-                                    <span className="w-2 h-2 rounded-full bg-accent-rust animate-pulse" />
+                                <div className="flex items-center gap-2 mt-3 px-2 py-1 bg-bg-tertiary font-mono text-xs tracking-wider text-accent-rust">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-accent-rust animate-pulse" />
                                     Speaking...
                                 </div>
                             )}
                         </div>
+                    </div>
+                </div>
 
-                        {/* AI Coach - paragraph, updates slowly */}
-                        <div className="bg-bg-secondary border border-border-subtle p-4 flex-1 flex flex-col min-h-[150px]">
-                            <h3 className="text-sm tracking-widest mb-4 pb-1 border-b border-border-subtle text-text-muted">AI Coach</h3>
-                            {coachSummary ? (
-                                <p className="text-text-cream text-sm leading-relaxed">{coachSummary.text}</p>
-                            ) : (
-                                <div className="flex items-center justify-center flex-1">
-                                    <div className="flex items-center gap-2">
-                                        <span className="w-2 h-2 rounded-full bg-accent-rust animate-pulse" />
-                                        <span className="font-mono text-xs tracking-wider uppercase text-text-dim">Analyzing motion patterns...</span>
+                {/* Minimal Activity Trail - Bottom Strip (3-5 items max, state changes only) */}
+                {feedbackHistory.length > 0 && (
+                    <div className="w-full mx-auto bg-bg-secondary border border-border-subtle p-3">
+                        <div className="flex items-center gap-2 overflow-x-auto">
+                            {feedbackHistory.slice(-5).reverse().map((item: any) => {
+                                const status = item.status || (item.type === 'correction' ? 'WARNING' : 'ON_TRACK');
+                                const statusLabels: Record<string, { label: string; color: string }> = {
+                                    'ON_TRACK': { label: 'ON TRACK', color: 'text-success border-success' },
+                                    'WARNING': { label: 'ADJUST', color: 'text-accent-rust border-accent-rust' },
+                                    'CRITICAL': { label: 'CRITICAL', color: 'text-error border-error' },
+                                };
+                                const config = statusLabels[status] || statusLabels['ON_TRACK'];
+                                return (
+                                    <div key={item.id} className={`flex items-center gap-1.5 px-2 py-1 bg-bg-primary border border-l-2 ${config.color} shrink-0`}>
+                                        <span className={`font-mono text-[0.6rem] tracking-wider uppercase ${config.color}`}>
+                                            {config.label}
+                                        </span>
                                     </div>
-                                </div>
-                            )}
+                                );
+                            })}
                         </div>
                     </div>
-                </div>
-
-                {/* Recent Activity - Full Width Bottom (last 6-8 feedback lines) */}
-                <div className="w-full mx-auto bg-bg-secondary border border-border-subtle p-4 flex-1">
-                    <h3 className="text-sm tracking-widest mb-4 pb-1 border-b border-border-subtle text-text-muted">Recent Activity</h3>
-                    <div className="grid grid-cols-1 gap-2 overflow-y-auto max-h-[200px] pr-2">
-                        {feedbackHistory.slice(-8).reverse().map((item: any) => (
-                            <div key={item.id} className={`grid grid-cols-[80px_1fr] gap-4 p-3 bg-bg-primary border-l-2 items-center ${item.type === 'correction' ? 'border-l-accent-rust' :
-                                item.type === 'encouragement' ? 'border-l-success' : 'border-l-border-subtle'
-                                }`}>
-                                <span className="font-mono text-xs text-text-dim">{formatTime(item.timestamp)}</span>
-                                <span className="font-body text-sm text-text-muted">{item.message}</span>
-                            </div>
-                        ))}
-                        {feedbackHistory.length === 0 && (
-                            <div className="flex items-center justify-center p-8 font-mono text-xs text-text-dim uppercase tracking-wider border border-dashed border-border-subtle">
-                                <span>No feedback recorded yet...</span>
-                            </div>
-                        )}
-                    </div>
-                </div>
+                )}
             </main>
         </div>
     );
