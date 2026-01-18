@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import CornerBrackets from './CornerBrackets';
 import { createOvershootVision, isOvershootConfigured, getApiKeyInfo } from '../services/overshoot';
-import { deduplicateNotes, parseOvershootOutput, isNearDuplicate, hasNewContentTokens } from '../utils/noteProcessing';
+import { parseOvershootOutput, conceptSignature } from '../utils/noteProcessing';
 
 interface ExpertVideoPanelProps {
   isAnalyzing: boolean;
@@ -21,39 +20,74 @@ interface ExpertVideoPanelProps {
 }
 
 /**
- * Overshoot Prompt - Strict format for Part 1
+ * Generate Overshoot Prompt - Structured JSON format with duration constraints
  * 
- * Enforces sparse, technical output with meaningful technique changes only.
- * Throttling: Notes are accepted only if at least 3 seconds have passed since last accepted note.
- * See flushResults() function and lastAcceptedTimeRef for throttling logic.
+ * Returns a prompt that enforces strict JSON output with time-anchored observations.
  */
-const ANALYSIS_PROMPT = `You are a surgical instructor annotating a procedure video.
+function generateAnalysisPrompt(durationMs: number): string {
+  // Calculate max observations: ceil(duration/6s) = ceil(durationMs/6000)
+  const maxObservations = Math.ceil(durationMs / 6000);
+
+  return `You are a surgical instructor analyzing a procedure video. Output strict JSON only.
+
+VIDEO CONTEXT:
+- Duration: ${durationMs}ms (${(durationMs / 1000).toFixed(1)}s)
+- Maximum observations: ${maxObservations} (one per 5-7s window)
+
+OUTPUT FORMAT (JSON only, no markdown):
+{
+  "overview": "2-3 sentences max describing overall technique themes. Abstract, no specific finger mentions.",
+  "observed_instruments": ["scissors", "needle driver", ...],
+  "observed_materials": ["banana", "suture", ...],
+  "observations": [
+    {
+      "text": "One sentence with action + target + reason clause (to/so that/because/to prevent)",
+      "category": "instrument|exposure|tissue|safety|efficiency|technique",
+      "start_ms": 0,
+      "end_ms": 6000,
+      "confidence": 0.0
+    }
+  ],
+  "key_concepts": ["Verb-first ≤8 words", "..."],
+  "notable_moments": [
+    {
+      "text": "Critical technique moment description",
+      "timestamp_ms": 123000,
+      "confidence": 0.0
+    }
+  ]
+}
 
 STRICT RULES:
-- Output ONLY when a technique meaningfully changes.
-- Output at most ONE sentence every 3–5 seconds.
-- ONE sentence, 14–20 words.
 
-Each sentence MUST include:
-- instrument
-- grip or hand posture
-- action
-- technical reason (why it matters)
+0. CONTENT GROUNDING:
+   - observed_instruments: List ONLY instruments you are confident appear in the video (e.g., "scissors", "forceps", "needle driver"). Do NOT invent tools.
+   - observed_materials: List ONLY materials you are confident appear (e.g., "banana", "suture", "tissue").
+   - In observations and notable_moments, you may ONLY mention instruments/materials from observed_instruments/observed_materials lists.
+   - If unsure about a specific instrument, use generic terms: "instrument", "needle", "suture", "retractor" ONLY if clearly present.
+   - DO NOT invent tools. Explicitly BAN mentioning: scalpel, trocar, laparoscope, suction, bipolar, cautery, stapler, etc. unless they appear in observed_instruments.
+   - If video shows banana/scissors/suture training, do NOT mention scalpels or other surgical instruments not visible.
 
-DO NOT repeat:
-- wrist stability unless posture visibly changes
-- retraction unless direction or force changes
+1. OBSERVATIONS:
+   - Hard cap: Return at most ${durationMs <= 20000 ? Math.ceil(durationMs / 4000) : Math.ceil(durationMs / 6000)} observations TOTAL across all responses (${durationMs <= 20000 ? 'one per 4s window if duration <= 20s' : 'one per 6s window'}).
+   - IMPORTANT: If you send multiple responses (as video is processed in clips), distribute observations across responses. Ideally return 1 observation per response, not chunks of multiple observations.
+   - Each observations[i].text must be exactly ONE sentence only. No newline characters. No multiple sentences. If you have more to say, choose the single highest-signal sentence.
+   - Each sentence must have: ACTION verb + TARGET (instrument/tissue/vessel/angle) + REASON clause ("to X", "so that Y", "because Z", "to prevent W")
+   - Anchor time windows using start_ms/end_ms based on video progression
+   - BAN rubric filler words: "observed", "appropriate", "effective", "good technique", "proper handling" UNLESS justified by a reason clause
+   - NO repetition: Do not repeat the same concept unless severity escalates
+   - Categories: "instrument" (grip/angle/control), "exposure" (retraction/visualization), "tissue" (dissection/handling), "safety" (risk/prevention), "efficiency" (motion economy), "technique" (hemostasis/cautery)
 
-DO NOT describe static states.
-DO NOT summarize.
-DO NOT include timestamps.
-DO NOT use generic phrases.
+2. OVERVIEW: 2-3 sentences max. Abstract themes only. No repetition.
 
-FORMAT:
-LOG: <sentence>
+3. KEY_CONCEPTS: 4-8 items, ≤8 words each, verb-first. Extract from observations as teachable principles.
 
-Only output if something NEW is observed.
-Otherwise remain silent.`;
+4. NOTABLE_MOMENTS: 0-4 items only. Include timestamp_ms ONLY if derivable from video progression. If uncertain, omit the moment entirely.
+
+5. When uncertain: REDUCE output rather than hallucinate. Prefer fewer, accurate observations over speculation.
+
+Output valid JSON only. No markdown, no code blocks, no trailing commas.`;
+}
 
 export default function ExpertVideoPanel({
   isAnalyzing,
@@ -63,6 +97,7 @@ export default function ExpertVideoPanel({
   onNotesUpdate,
   onAnalysisResult,
   onError,
+  onVideoUploaded,
 }: ExpertVideoPanelProps) {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string>('');
@@ -76,15 +111,27 @@ export default function ExpertVideoPanel({
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const videoEndedCleanupRef = useRef<(() => void) | null>(null);
 
+  // Store structured data from JSON responses (overview, keyConcepts, lowSignal, scaffold, observedInstruments, observedMaterials)
+  const structuredDataRef = useRef<{
+    overview?: string;
+    keyConcepts?: string[];
+    lowSignal?: boolean;
+    scaffold?: string[];
+    observedInstruments?: string[];
+    observedMaterials?: string[];
+    lastUpdateTime: number;
+  }>({ lastUpdateTime: 0 });
+  
   // Throttling: Queue incoming Overshoot messages and flush to UI on interval
   // MIN_TIME_BETWEEN_NOTES_MS: Minimum time (3-5 seconds) between accepting new notes
   // To tune throttling: Adjust MIN_TIME_BETWEEN_NOTES_MS (higher = more sparse, lower = more frequent)
-  const MIN_TIME_BETWEEN_NOTES_MS = 3000; // 3 seconds minimum (target: 3-5 seconds)
+  const MIN_TIME_BETWEEN_NOTES_MS = 4000; // 4 seconds (target: 3-5 seconds)
   const FLUSH_INTERVAL_MS = 1000; // Check queue every 1 second, but only accept if enough time passed
-  const messageQueueRef = useRef<string[]>([]);
+  const messageQueueRef = useRef<string[]>([]); // Queue of observation texts for throttling
+  const momentsQueueRef = useRef<Array<{ text: string; timestamp: number | null }>>([]); // Queue of notable moments
   const flushIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const acceptedNotesRef = useRef<string[]>([]); // Track last ~15 accepted notes for dedupe
   const lastAcceptedTimeRef = useRef<number>(0); // Track when last note was accepted for throttling
+  const seenObservationSignaturesRef = useRef<Set<string>>(new Set()); // Track concept signatures for deduplication
 
   // Cleanup video URL on unmount
   useEffect(() => {
@@ -103,6 +150,8 @@ export default function ExpertVideoPanel({
       setVideoUrl(url);
       setVideoFile(file);
       setError(null);
+      // Notify parent that video was uploaded
+      onVideoUploaded?.();
     }
   };
 
@@ -139,10 +188,20 @@ export default function ExpertVideoPanel({
     try {
       onAnalysisStart();
       notesAccumulatorRef.current = [];
+      messageQueueRef.current = [];
+      momentsQueueRef.current = [];
+      seenObservationSignaturesRef.current.clear();
+      structuredDataRef.current = { lastUpdateTime: 0 };
       setError(null);
 
+      // Get video duration for prompt (default to 60s if not available)
+      const videoDurationMs = videoRef.current?.duration
+        ? Math.floor((videoRef.current.duration || 60) * 1000)
+        : 60000;
+      const analysisPrompt = generateAnalysisPrompt(videoDurationMs);
+
       const vision = createOvershootVision({
-        prompt: ANALYSIS_PROMPT,
+        prompt: analysisPrompt,
         file: videoFile,
         processing: {
           clip_length_seconds: 2,
@@ -151,27 +210,69 @@ export default function ExpertVideoPanel({
           sampling_ratio: 0.2,
         },
         onResult: (text: string) => {
-          // Queue incoming messages for throttled processing
-          // Parse to extract both LOG and MOMENT items
+          // Parse structured JSON or legacy format
           const parsed = parseOvershootOutput(text);
-          messageQueueRef.current.push(...parsed.logs, ...parsed.moments);
+
+          // Filter observations by concept signature - only enqueue new concepts
+          const newObservations: string[] = [];
+          for (const obs of parsed.observations) {
+            const signature = conceptSignature(obs.text);
+            if (!seenObservationSignaturesRef.current.has(signature)) {
+              seenObservationSignaturesRef.current.add(signature);
+              newObservations.push(obs.text);
+            }
+          }
+
+          // Queue only new observation texts for throttled processing
+          messageQueueRef.current.push(...newObservations);
+
+          // Queue notable moments (convert timestampMs to seconds for compatibility)
+          if (parsed.notableMoments && parsed.notableMoments.length > 0) {
+            momentsQueueRef.current.push(...parsed.notableMoments.map(m => ({
+              text: m.text,
+              timestamp: m.timestampMs / 1000 // Convert milliseconds to seconds
+            })));
+          }
+
+          // Store structured data (overview, keyConcepts, lowSignal, scaffold, observedInstruments, observedMaterials) from JSON
+          if (parsed.overview || (parsed.keyConcepts && parsed.keyConcepts.length > 0) || parsed.lowSignal || parsed.observedInstruments || parsed.observedMaterials) {
+            structuredDataRef.current = {
+              overview: parsed.overview || structuredDataRef.current.overview,
+              keyConcepts: parsed.keyConcepts || structuredDataRef.current.keyConcepts,
+              lowSignal: parsed.lowSignal !== undefined ? parsed.lowSignal : structuredDataRef.current.lowSignal,
+              scaffold: parsed.scaffold || structuredDataRef.current.scaffold,
+              observedInstruments: parsed.observedInstruments || structuredDataRef.current.observedInstruments,
+              observedMaterials: parsed.observedMaterials || structuredDataRef.current.observedMaterials,
+              lastUpdateTime: Date.now()
+            };
+          }
         },
         onError: (err: Error) => {
           console.error('Overshoot error:', err);
           const errorMsg = `Analysis error: ${err.message}`;
           setError(errorMsg);
           onError?.(errorMsg);
+          // Stop analysis on error - clear intervals and mark as complete
+          if (flushIntervalRef.current) {
+            clearInterval(flushIntervalRef.current);
+            flushIntervalRef.current = null;
+          }
+          if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+            timeoutRef.current = null;
+          }
+          onAnalysisComplete();
         },
       });
 
       visionInstanceRef.current = vision;
-
+      
       // Initialize flush interval: check queue every FLUSH_INTERVAL_MS
       // Notes are only accepted if MIN_TIME_BETWEEN_NOTES_MS has passed since last acceptance
       flushIntervalRef.current = setInterval(() => {
         flushResults();
       }, FLUSH_INTERVAL_MS);
-
+      
       await vision.start();
 
       // Fallback timeout: complete after 60 seconds max (or video duration + buffer)
@@ -209,113 +310,167 @@ export default function ExpertVideoPanel({
   };
 
   /**
-   * Flush queued messages: pick the best candidate and add to accumulator if it passes filters
+   * Helper: Normalize text for comparison (lowercase, remove punctuation, collapse whitespace)
+   */
+  const normalizeText = (s: string): string => {
+    return s
+      .toLowerCase()
+      .replace(/[^\w\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
+  /**
+   * Helper: Extract first meaningful token (skip articles like "a", "the", "an")
+   * Returns the first word that is not an article
+   */
+  const firstToken = (s: string): string => {
+    const articles = new Set(['a', 'an', 'the']);
+    const tokens = s.trim().split(/\s+/);
+    for (const token of tokens) {
+      const cleaned = token.toLowerCase().replace(/[^\w]/g, '');
+      if (cleaned && !articles.has(cleaned)) {
+        return cleaned;
+      }
+    }
+    // Fallback: return first token if no meaningful token found
+    return tokens[0]?.toLowerCase().replace(/[^\w]/g, '') || '';
+  };
+
+  /**
+   * Helper: Compute concept signature (normalize + remove stopwords)
+   * Used for concept-level deduplication in flushResults
+   */
+  const computeConceptSignature = (s: string): string => {
+    const stopwords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 
+      'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'been', 'be', 'being', 'have', 
+      'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must',
+      'this', 'that', 'these', 'those', 'it', 'its', 'they', 'them', 'their', 'there', 'here',
+      'during', 'while', 'when', 'where', 'which', 'who', 'what', 'how', 'why']);
+    
+    const normalized = normalizeText(s);
+    const tokens = normalized.split(/\s+/).filter(token => token.length > 2 && !stopwords.has(token));
+    return tokens.join(' ');
+  };
+
+  /**
+   * Flush queued messages: add to accumulator if throttling allows
    * 
    * Strategy:
    * 1. Check throttling: Only accept if MIN_TIME_BETWEEN_NOTES_MS has passed since last acceptance
-   * 2. Filter queue: remove empty/invalid messages
-   * 3. Dedupe: remove exact duplicates and near-duplicates (Jaccard >= 0.75)
-   * 4. Template dedupe: require at least 2 new content tokens vs last accepted
-   * 5. Pick best candidate: longest unique message (most informative)
-   * 6. If candidate passes, append to accumulator with code-attached timestamp and update UI
+   * 2. Apply strict anti-repetition: concept-level dedupe + consecutive start-word constraint
+   * 3. Accept ONLY ONE observation per interval (prevents chunks)
+   * 4. If all candidates rejected, accept NONE (wait for next interval)
    * 
-   * Throttling is enforced by MIN_TIME_BETWEEN_NOTES_MS (currently 3000ms = 3 seconds)
+   * Throttling is enforced by MIN_TIME_BETWEEN_NOTES_MS (currently 4000ms = 4 seconds)
    */
   const flushResults = () => {
     if (messageQueueRef.current.length === 0) return;
-
-    // Throttling: Only accept new note if enough time has passed
+    
+    // Throttling: Only accept new notes if enough time has passed
     const now = Date.now();
     const timeSinceLastAccepted = now - lastAcceptedTimeRef.current;
     if (timeSinceLastAccepted < MIN_TIME_BETWEEN_NOTES_MS) {
       // Not enough time has passed, skip this flush
       return;
     }
+    
+    // Filter: keep only non-empty messages, but preserve original for removal
+    const candidatePairs = messageQueueRef.current
+      .map((msg, idx) => ({ original: msg, trimmed: msg.trim(), index: idx }))
+      .filter(pair => pair.trimmed.length > 0);
 
-    // Filter: keep only non-empty messages
-    const candidates = messageQueueRef.current
-      .map(msg => msg.trim())
-      .filter(msg => msg.length > 0);
-
-    if (candidates.length === 0) {
+    if (candidatePairs.length === 0) {
       messageQueueRef.current = [];
       return;
     }
+    
+    // Get existing accepted notes for deduplication checks
+    const existingNotes = notesAccumulatorRef.current.map(n => n.text);
+    const existingSignatures = new Set(existingNotes.map(computeConceptSignature).filter(sig => sig.length > 0));
+    const lastAcceptedFirstToken = existingNotes.length > 0 ? firstToken(existingNotes[existingNotes.length - 1]) : null;
 
-    // Pick best candidate: longest unique message (most informative)
-    // Sort by length descending, then pick first that passes filters
-    const sortedCandidates = [...candidates].sort((a, b) => b.length - a.length);
-
-    let selectedCandidate: string | null = null;
-    let selectedType: 'LOG' | 'MOMENT' = 'LOG';
-
-    for (const candidate of sortedCandidates) {
-      // Determine type (LOG vs MOMENT) - though we parse both, track type for future use
-      const isMoment = candidate.toLowerCase().includes('moment:') ||
-        acceptedNotesRef.current.length % 5 === 0; // Rough heuristic: every 5th note might be moment
-      const cleanCandidate = candidate.replace(/^(LOG|MOMENT):\s*/i, '').trim();
-
-      // Check exact duplicate against accumulator
-      const normalizedCandidate = cleanCandidate.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
-      const isExactDuplicate = notesAccumulatorRef.current.some(note => {
-        const normalizedNote = note.text.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
-        return normalizedNote === normalizedCandidate;
-      });
-
-      if (isExactDuplicate) continue;
-
-      // Check near-duplicate using Jaccard similarity (>= 0.75 threshold)
-      if (isNearDuplicate(cleanCandidate, acceptedNotesRef.current, 15)) {
-        continue;
+    // Filter candidates: reject duplicates and consecutive start-word matches
+    const validCandidates = candidatePairs.filter(pair => {
+      const text = pair.trimmed;
+      const sig = computeConceptSignature(text);
+      
+      // Reject if concept signature already exists (concept-level dedupe)
+      if (sig && existingSignatures.has(sig)) {
+        return false;
       }
-
-      // Template dedupe: require at least 2 new content tokens
-      const lastAccepted = acceptedNotesRef.current.length > 0
-        ? acceptedNotesRef.current[acceptedNotesRef.current.length - 1]
-        : null;
-      if (!hasNewContentTokens(cleanCandidate, lastAccepted)) {
-        continue;
+      
+      // Reject if starts with same token as last accepted (consecutive start-word constraint)
+      const candidateFirstToken = firstToken(text);
+      if (lastAcceptedFirstToken && candidateFirstToken === lastAcceptedFirstToken) {
+        return false;
       }
+      
+      return true;
+    });
 
-      // Candidate passed all filters
-      selectedCandidate = cleanCandidate;
-      selectedType = isMoment ? 'MOMENT' : 'LOG';
-      break;
+    // If all candidates were rejected, accept NONE (wait for next interval)
+    if (validCandidates.length === 0) {
+      // Remove all rejected candidates from queue to prevent infinite loop
+      messageQueueRef.current = [];
+      console.log("[flush] all candidates rejected (duplicates/consecutive), remaining queue cleared");
+      return;
+    }
+    
+    // Rank valid candidates deterministically: prefer longer, more specific observations with concrete instruments
+    const rankCandidate = (text: string): number => {
+      let rank = 0;
+      const lower = text.toLowerCase();
+      
+      // Prefer longer text (more specific)
+      rank += text.length;
+      
+      // Prefer concrete instruments/materials (forceps, scissors, suture, needle driver)
+      const concreteTerms = ['forceps', 'scissors', 'suture', 'needle driver', 'needledriver', 'retractor', 'banana'];
+      for (const term of concreteTerms) {
+        if (lower.includes(term)) {
+          rank += 100; // Significant boost for concrete terms
+        }
+      }
+      
+      return rank;
+    };
+
+    // Select ONLY ONE best candidate from valid candidates
+    let bestPair = validCandidates[0];
+    let bestRank = rankCandidate(bestPair.trimmed);
+    
+    for (const pair of validCandidates) {
+      const rank = rankCandidate(pair.trimmed);
+      if (rank > bestRank) {
+        bestRank = rank;
+        bestPair = pair;
+      }
     }
 
-    // If we found a valid candidate, add it to accumulator with timestamp
-    if (selectedCandidate) {
-      // Capture video.currentTime when logging (code-attached timestamp, trusted)
-      const videoEl = videoRef.current;
-      const timestamp = (videoEl && !isNaN(videoEl.currentTime) && isFinite(videoEl.currentTime))
-        ? videoEl.currentTime
-        : 0; // Default to 0 if video not ready
-
+    // Add ONLY the selected candidate to accumulator (use trimmed version)
       const noteWithTimestamp: { text: string; timestamp: number; type: 'LOG' | 'MOMENT' } = {
-        text: selectedCandidate,
-        timestamp,
-        type: selectedType,
+      text: bestPair.trimmed,
+      timestamp: 0, // Placeholder - not used for observations, only for legacy moment extraction
+      type: 'LOG',
       };
-
+      
       notesAccumulatorRef.current.push(noteWithTimestamp);
+      
+    // Remove ONLY the accepted candidate from queue using original index (leave others for future intervals)
+    messageQueueRef.current.splice(bestPair.index, 1);
 
-      // Track in accepted notes (keep last 15 for dedupe lookback - text only for dedupe)
-      acceptedNotesRef.current.push(selectedCandidate);
-      if (acceptedNotesRef.current.length > 15) {
-        acceptedNotesRef.current.shift();
-      }
-
+    // Debug log
+    console.log("[flush] accepted 1 of", candidatePairs.length, "valid:", validCandidates.length, "remaining", messageQueueRef.current.length);
+      
       // Update throttling timestamp
       lastAcceptedTimeRef.current = now;
-
-      // Update parent with current state (extract text for UI)
+      
+    // Update parent with current state (extract text for UI - already deduplicated by signature)
       const noteTexts = notesAccumulatorRef.current.map(n => n.text);
-      const deduped = deduplicateNotes(noteTexts);
-      onNotesUpdate(deduped);
-    }
-
-    // Clear queue for next interval
-    messageQueueRef.current = [];
+    onNotesUpdate(noteTexts);
+    
+    // DO NOT clear the whole queue - leave remaining messages for future intervals
   };
 
   const completeAnalysis = async () => {
@@ -351,29 +506,146 @@ export default function ExpertVideoPanel({
     }
 
     // Process accumulated notes (generate Overview at completion only)
-    const { extractSummary, extractKeyConcepts, extractNotableMoments, deduplicateNotes } = await import('../utils/noteProcessing');
-
-    // Extract text for deduplication and summary/key concepts extraction
+    const { extractSummary, extractKeyConcepts, extractNotableMoments, deduplicateNotes, thinObservationsDeterministic } = await import('../utils/noteProcessing');
+    
+    // Extract text for deduplication
     const noteTexts = notesAccumulatorRef.current.map(n => n.text);
     const dedupedNoteTexts = deduplicateNotes(noteTexts);
 
-    // Send final deduplicated notes (text only for UI streaming log)
-    onNotesUpdate(dedupedNoteTexts);
+    // Apply final thinning: convert to Observations, thin deterministically, then extract text
+    const videoDurationMs = videoRef.current?.duration
+      ? Math.floor((videoRef.current.duration || 60) * 1000)
+      : 60000;
+    
+    // Convert to Observation objects for thinning
+    const accumulatedObservations = dedupedNoteTexts.map(text => ({
+      text,
+      category: 'general' as const,
+    }));
+    
+    // Apply deterministic thinning to final accumulated list
+    const thinnedFinal = thinObservationsDeterministic(accumulatedObservations, videoDurationMs);
+    const finalNoteTexts = thinnedFinal.map(obs => obs.text);
+
+    // Send final thinned notes (text only for UI streaming log)
+    onNotesUpdate(finalNoteTexts);
+
+    // Check for low signal: if < 3 observations after deduplication + thinning, set lowSignal flag
+    let lowSignal = structuredDataRef.current.lowSignal || false;
+    let scaffold = structuredDataRef.current.scaffold;
+
+    if (finalNoteTexts.length < 3) {
+      lowSignal = true;
+      // Generate scaffold if not already provided from parsed output
+      if (!scaffold) {
+        scaffold = [
+          'Focus areas to review: exposure stability',
+          'Focus areas to review: instrument angle',
+          'Focus areas to review: traction-countertraction',
+          'Focus areas to review: hemostasis technique',
+          'Focus areas to review: motion economy',
+          'Focus areas to review: tissue handling'
+        ];
+      }
+    }
 
     // Extract final summary, key concepts, and notable moments at completion
-    // Overview: abstract themes only, not verbatim log sentences
-    const summary = extractSummary(dedupedNoteTexts);
-    const keyConcepts = extractKeyConcepts(dedupedNoteTexts);
+    // Prefer structured data from JSON if available, otherwise fall back to extraction
+    // Use finalNoteTexts (thinned) for extraction to avoid processing too many observations
+    const { buildOverview } = await import('../utils/noteProcessing');
+    const rawOverview = structuredDataRef.current.overview || extractSummary(finalNoteTexts);
+    // Use buildOverview to enhance overview with observed instruments/materials and duration context
+    const summary = buildOverview(
+      rawOverview,
+      structuredDataRef.current.observedInstruments,
+      structuredDataRef.current.observedMaterials,
+      videoDurationMs
+    );
+    const existingKeyConcepts = structuredDataRef.current.keyConcepts && structuredDataRef.current.keyConcepts.length > 0
+      ? structuredDataRef.current.keyConcepts
+      : extractKeyConcepts(finalNoteTexts);
+    
+    // Add 1-2 bank concepts to supplement existing concepts
+    // Use video filename as seed for deterministic selection
+    const videoIdSeed = (videoFile?.name) || 'default';
+    const isShortVideo = videoDurationMs <= 20000 || finalNoteTexts.length <= 4;
+    const bankConceptCount = isShortVideo ? 1 : 2;
+    
+    const { pickBankConcepts } = await import('../utils/noteProcessing');
+    const bankConcepts = pickBankConcepts({
+      existingConcepts: existingKeyConcepts,
+      observedInstruments: structuredDataRef.current.observedInstruments || [],
+      observedMaterials: structuredDataRef.current.observedMaterials || [],
+      videoIdSeed,
+      count: bankConceptCount
+    });
+    
+    // Combine existing + bank concepts, cap at 8 total
+    const finalKeyConcepts = [...existingKeyConcepts, ...bankConcepts].slice(0, 8);
 
-    // Notable moments: use notes with code-attached timestamps and type (not model-provided)
-    // Notes format: { text: string, timestamp: number, type: 'LOG' | 'MOMENT' }
-    const notableMoments = extractNotableMoments(notesAccumulatorRef.current);
+    // Notable moments: merge queued moments with notes (prioritize queued moments from JSON)
+    // Only include timestamps if they're > 1 second and not fake (code-attached timestamps are trusted)
+    const allNotableMoments: Array<{ text: string; timestamp: number }> = [];
+
+    // Add moments from queue (from JSON notable_moments field) - only if timestamp is valid
+    for (const moment of momentsQueueRef.current) {
+      if (moment.text && moment.timestamp !== null && moment.timestamp > 1) {
+        allNotableMoments.push({ text: moment.text, timestamp: moment.timestamp });
+      }
+    }
+
+    // Add moments from accumulator (code-attached timestamps are trusted)
+    const extractedMoments = extractNotableMoments(notesAccumulatorRef.current);
+
+    // Format extracted moments (they come as "MM:SS – text" strings)
+    for (const momentStr of extractedMoments) {
+      const match = momentStr.match(/^(\d+:\d+)\s*[–-]\s*(.+)$/);
+      if (match) {
+        const [mins, secs] = match[1].split(':').map(Number);
+        const timestamp = mins * 60 + secs;
+        if (timestamp > 1) {
+          allNotableMoments.push({ text: match[2], timestamp });
+        }
+      }
+    }
+
+    // Deduplicate by both text and timestamp (avoid duplicate timestamps, keep only distinct moments)
+    const seen = new Set<string>();
+    const seenTimestamps = new Set<number>();
+    const distinctMoments = allNotableMoments.filter(m => {
+      const normalized = m.text.toLowerCase().trim();
+      // Skip if duplicate text or duplicate timestamp (only one moment per timestamp)
+      if (seen.has(normalized) || seenTimestamps.has(m.timestamp)) return false;
+      seen.add(normalized);
+      seenTimestamps.add(m.timestamp);
+      return true;
+    });
+
+    // Sort by timestamp (chronological) and take top 4 truly distinct moments
+    const sortedMoments = distinctMoments
+      .sort((a, b) => a.timestamp - b.timestamp)
+      .slice(0, 4);
+
+    // Convert to structured format with timestampMs (milliseconds) and source
+    // Moments from JSON queue have trusted timestamps from Overshoot
+    // Moments from accumulator (extracted) have timestamps from legacy extraction (less reliable)
+    const structuredMoments = sortedMoments.map(m => {
+      // Check if this moment came from JSON queue (has text matching a queued moment)
+      const fromJSON = momentsQueueRef.current.some(qm => qm.text === m.text && qm.timestamp === m.timestamp);
+      return {
+        text: m.text,
+        timestampMs: m.timestamp * 1000, // Convert seconds to milliseconds
+        timestampSource: fromJSON ? 'code' as const : 'code' as const // All trusted for now - JSON moments are preferred
+      };
+    });
 
     // Send structured results to parent
     onAnalysisResult({
       summary,
-      keyConcepts,
-      notableMoments,
+      keyConcepts: finalKeyConcepts,
+      notableMoments: structuredMoments,
+      lowSignal,
+      scaffold,
     });
 
     // Mark analysis as complete
@@ -407,18 +679,17 @@ export default function ExpertVideoPanel({
     setError(null);
     notesAccumulatorRef.current = [];
     messageQueueRef.current = [];
-    acceptedNotesRef.current = [];
+    momentsQueueRef.current = [];
     lastAcceptedTimeRef.current = 0;
+    seenObservationSignaturesRef.current.clear();
+    structuredDataRef.current = { lastUpdateTime: 0 };
   };
 
   return (
     <div className="row-start-1 col-start-1">
-      <CornerBrackets size="md" animated>
-        <div className="h-full flex flex-col bg-[rgba(0,0,0,0.3)] [data-theme='light']:bg-[rgba(0,0,0,0.05)]">
-          <div className="flex border-b border-[rgba(255,255,255,0.1)] [data-theme='light']:border-border-accent">
-            <div className="flex-1 bg-transparent px-4 py-4 text-accent-rust uppercase text-xs tracking-wider border-b-2 border-accent-rust bg-accent-rust-glow">
-              Video Upload & Analysis
-            </div>
+      <div className="h-full flex flex-col bg-bg-tertiary/30 border border-border-subtle">
+        <div className="px-4 py-3 border-b border-border-subtle">
+          <h3 className="text-sm tracking-widest text-text-muted uppercase m-0">Video Upload & Analysis</h3>
           </div>
 
           {videoFile && videoUrl ? (
@@ -444,7 +715,7 @@ export default function ExpertVideoPanel({
               </div>
 
               {/* File info and controls */}
-              <div className="p-4 border-t border-[rgba(255,255,255,0.1)] flex items-center justify-between">
+            <div className="p-4 border-t border-border-subtle flex items-center justify-between">
                 <div className="flex-1 min-w-0">
                   <p className="text-text-cream text-sm truncate" title={videoFile.name}>{videoFile.name}</p>
                   <p className="text-text-dim text-xs">{(videoFile.size / 1024 / 1024).toFixed(2)} MB</p>
@@ -456,10 +727,11 @@ export default function ExpertVideoPanel({
                   Remove
                 </button>
               </div>
+
             </div>
           ) : (
             <div
-              className="h-full min-h-[400px] flex items-center justify-center cursor-pointer transition-all duration-300 border border-dashed border-[rgba(255,255,255,0.1)] [data-theme='light']:bg-[rgba(0,0,0,0.05)] [data-theme='light']:border-border-accent hover:bg-[rgba(0,180,216,0.05)] hover:border-accent-rust"
+            className="h-full min-h-[400px] flex items-center justify-center cursor-pointer transition-all duration-300 bg-bg-tertiary/30 hover:bg-accent-rust/5"
               onClick={() => fileInputRef.current?.click()}
             >
               <input
@@ -485,7 +757,6 @@ export default function ExpertVideoPanel({
             </div>
           )}
         </div>
-      </CornerBrackets>
     </div>
   );
 }

@@ -3,13 +3,17 @@
  * 
  * States:
  * - Idle: "Upload video to generate observations"
- * - Analyzing: Shows streaming LOG items in scrolling feed (paced, non-repeating)
- * - Complete: Shows Overview (2 sentences), Key Concepts (4-8 chips, ≤8 words each), Notable Moments (0-4)
+ * - Analyzing: Shows structured rubric with placeholders + streaming LOG items + Key Concepts + Notable Moments
+ * - Complete: Shows Overview (2 sentences), Key Concepts (4-8 chips, ≤8 words each), Notable Moments (0-4), filled rubric
  * - Error: Shows error message if analysis fails
  * 
- * Overshoot Output Format:
- * - LOG: <one sentence, 8-16 words> → displayed in Observation Log feed
- * - MOMENT: <optional time> <one sentence, 8-18 words> → extracted to Notable Moments
+ * Structured Rubric Sections (shown when analyzing):
+ * - Instrument control
+ * - Exposure & retraction
+ * - Hemostasis
+ * - Motion economy
+ * - Tissue handling
+ * - Safety checks
  * 
  * Throttling: Results are buffered and flushed every 3-5 seconds for paced UI updates
  * Deduplication: Aggressive (exact + near-duplicate >80% word overlap)
@@ -39,17 +43,114 @@ export default function ExpertSummaryPanel({
   analysisResult,
   error,
 }: ExpertSummaryPanelProps) {
-  // Parse streaming notes to extract LOG items for Observation Log feed
+  // Parse streaming notes to extract observation texts for Observation Log feed
   const logItems = useMemo(() => {
     const logs: string[] = [];
     for (const note of streamingNotes) {
       const parsed = parseOvershootOutput(note);
-      logs.push(...parsed.logs);
+      logs.push(...parsed.observations.map(obs => obs.text));
     }
     return logs;
   }, [streamingNotes]);
 
   const hasLogs = logItems.length > 0;
+
+  // Define category keywords for scoring-based categorization
+  const categoryKeywords: Record<string, string[]> = {
+    'Instrument control': ['instrument', 'grip', 'handle', 'angle', 'control', 'forceps', 'scalpel', 'positioning'],
+    'Exposure & retraction': ['exposure', 'retraction', 'retractor', 'visualization', 'field', 'view'],
+    'Safety checks': ['safety', 'avoid', 'prevent', 'risk', 'caution', 'prevention'],
+    'Tissue handling': ['tissue', 'dissection', 'plane', 'manipulation', 'handling'],
+    'Hemostasis': ['hemostasis', 'bleeding', 'cautery', 'bipolar', 'hemostatic', 'vessel', 'clip'],
+    'Motion economy': ['motion', 'economy', 'efficiency', 'movement', 'trajectory', 'unnecessary']
+  };
+
+  // Category order preference (for tie-breaking)
+  const categoryOrder = ['Instrument control', 'Exposure & retraction', 'Safety checks', 'Tissue handling', 'Hemostasis', 'Motion economy'];
+
+  // Map log items to rubric categories - each item goes to ONE category (best match by scoring)
+  const rubricItems = useMemo(() => {
+    const categories: Record<string, string[]> = {
+      'Instrument control': [],
+      'Exposure & retraction': [],
+      'Hemostasis': [],
+      'Motion economy': [],
+      'Tissue handling': [],
+      'Safety checks': []
+    };
+
+    // Score-based categorization: assign each log to only ONE category (best match)
+    for (const log of logItems) {
+      const lower = log.toLowerCase();
+      let bestCategory = '';
+      let bestScore = 0;
+
+      // Score each category
+      for (const [category, keywords] of Object.entries(categoryKeywords)) {
+        const score = keywords.reduce((count, keyword) => {
+          return count + (lower.includes(keyword) ? 1 : 0);
+        }, 0);
+
+        // If score matches current best, prefer category with earlier order preference
+        if (score > bestScore || (score === bestScore && score > 0 && categoryOrder.indexOf(category) < categoryOrder.indexOf(bestCategory))) {
+          bestScore = score;
+          bestCategory = category;
+        }
+      }
+
+      // Assign to best category (or skip if no matches)
+      if (bestCategory && bestScore > 0) {
+        // Dedupe within category by string equality
+        if (!categories[bestCategory].includes(log)) {
+          categories[bestCategory].push(log);
+        }
+      }
+    }
+
+    return categories;
+  }, [logItems]);
+
+  // Adaptive rubric: determine sections and max items per section based on video length
+  const { rubricSections, maxItemsPerSection } = useMemo(() => {
+    // Infer video length from logItems count (fallback: <6 = short)
+    const isShortVideo = logItems.length < 6;
+    const isMediumVideo = logItems.length >= 6 && logItems.length < 15;
+
+    // Count items per category
+    const categoryCounts = Object.entries(rubricItems).map(([cat, items]) => ({
+      category: cat,
+      count: items.length
+    })).filter(entry => entry.count > 0);
+
+    // Sort by count (descending), then by order preference
+    categoryCounts.sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      return categoryOrder.indexOf(a.category) - categoryOrder.indexOf(b.category);
+    });
+
+    // Determine sections and limits based on video length
+    let sectionsToShow: string[];
+    let maxPerSection: number;
+
+    if (isShortVideo) {
+      // Short video: show top 2-3 categories, max 1 item each
+      sectionsToShow = categoryCounts.slice(0, 3).map(e => e.category);
+      maxPerSection = 1;
+    } else if (isMediumVideo) {
+      // Medium video (30-90s inferred): show top 3-4 categories, max 2 each
+      sectionsToShow = categoryCounts.slice(0, 4).map(e => e.category);
+      maxPerSection = 2;
+    } else {
+      // Long video: show up to 6 categories, max 2 each
+      sectionsToShow = categoryCounts.slice(0, 6).map(e => e.category);
+      maxPerSection = 2;
+    }
+
+    return {
+      rubricSections: sectionsToShow,
+      maxItemsPerSection: maxPerSection
+    };
+  }, [logItems, rubricItems]);
 
   // Debug: Load checkOvershootConfig for console debugging
   useEffect(() => {
@@ -62,12 +163,12 @@ export default function ExpertSummaryPanel({
   }, [error]);
 
   return (
-    <div className="row-start-1 col-start-2 h-[600px] bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] rounded-lg p-6 relative flex flex-col [data-theme='light']:bg-[rgba(0,0,0,0.03)] [data-theme='light']:border-border-subtle">
-      <h3 className="mt-0 mb-4 text-accent-rust text-sm uppercase tracking-wider flex items-center gap-2 flex-shrink-0">
-        <span>◈</span> AI Observation Log
-      </h3>
+    <div className="row-start-1 col-start-2 h-[600px] bg-bg-tertiary/30 border border-border-subtle relative flex flex-col">
+      <div className="px-4 py-3 border-b border-border-subtle">
+        <h3 className="text-sm tracking-widest text-text-muted uppercase m-0">Procedure Analysis</h3>
+      </div>
 
-      <div className="flex-1 flex flex-col gap-4 overflow-y-auto min-h-0">
+      <div className="flex-1 flex flex-col gap-4 overflow-y-auto min-h-0 p-6">
         {/* Error State */}
         {error && (
           <div className="p-4 bg-error/10 border border-error/30 rounded text-error text-sm">
@@ -96,48 +197,53 @@ export default function ExpertSummaryPanel({
           </div>
         )}
 
-        {/* Idle State */}
-        {!error && !isAnalyzing && !analysisComplete && !hasLogs && (
+        {/* State A: No video selected / Idle State */}
+        {!error && !isAnalyzing && !analysisComplete && !hasLogs && !analysisResult && (
           <div className="text-text-muted italic text-center py-8">
             Upload video to generate observations
           </div>
         )}
 
-        {/* Analyzing State - Show Streaming LOG Items (scrolling chat-like feed) */}
-        {isAnalyzing && hasLogs && (
-          <div className="space-y-3">
-            {logItems.map((log, i) => (
-              <div
-                key={i}
-                className="p-3 bg-[rgba(255,255,255,0.02)] border-l-2 border-accent-rust rounded-r text-text-cream text-sm leading-relaxed animate-fade-in"
-              >
-                {log}
-              </div>
-            ))}
-            <div className="text-text-muted italic text-sm flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-accent-rust animate-pulse" />
-              Analyzing...
+        {/* State B: Analyzing but no results yet - Show minimal "Analyzing..." placeholder */}
+        {isAnalyzing && !error && !hasLogs && !analysisResult && (
+          <div className="text-text-muted italic text-center py-8 flex items-center justify-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-accent-rust animate-pulse" />
+            Analyzing...
+          </div>
+        )}
+
+        {/* Observation Log - Show FIRST as soon as logs arrive, fill available space */}
+        {hasLogs && !error && !analysisResult && (
+          <div className="flex-1 flex flex-col min-h-0">
+            <h4 className="text-accent-rust text-xs uppercase tracking-wider mb-2 font-mono flex-shrink-0">
+              Observation Log
+            </h4>
+            <div className="flex-1 space-y-2 overflow-y-auto min-h-0">
+              {logItems.map((log, i) => (
+                <div
+                  key={i}
+                  className="p-2 bg-bg-tertiary/50 border-l-2 border-accent-rust/50 rounded-r text-text-cream text-xs leading-relaxed"
+                >
+                  {log}
+                </div>
+              ))}
+              {isAnalyzing && (
+                <div className="text-text-muted italic text-xs flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-accent-rust animate-pulse" />
+                  Analyzing...
+                </div>
+              )}
             </div>
           </div>
         )}
 
-        {/* Analyzing State - No Logs Yet */}
-        {isAnalyzing && !hasLogs && !error && (
-          <div className="text-text-muted italic text-center py-8">
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <span className="w-2 h-2 rounded-full bg-accent-rust animate-pulse" />
-              AI Analyzing video frames...
-            </div>
-            <p className="text-xs">Processing video and generating observations...</p>
-          </div>
-        )}
-
-        {/* Complete State - Show Overview, Key Concepts, Notable Moments */}
-        {analysisComplete && analysisResult && (
-          <div className="space-y-4">
-            {/* Overview (2 sentences max) */}
+        {/* State C: Analysis Complete - Show Overview, Observation Log, Analysis Rubric, Key Concepts, Notable Moments */}
+        {/* State gating: Only render if we have meaningful data (not just empty arrays) */}
+        {analysisResult && !error && (analysisResult.summary || analysisResult.keyConcepts.length > 0 || analysisResult.notableMoments.length > 0 || hasLogs) && (
+          <div className="flex-1 flex flex-col min-h-0 space-y-4">
+            {/* Overview - First section */}
             {analysisResult.summary && (
-              <div>
+              <div className="flex-shrink-0">
                 <h4 className="text-accent-rust text-xs uppercase tracking-wider mb-2 font-mono">
                   Overview
                 </h4>
@@ -147,62 +253,108 @@ export default function ExpertSummaryPanel({
               </div>
             )}
 
-            {/* Key Concepts (4-8 chips, ≤8 words each, verbs allowed) */}
-            {analysisResult.keyConcepts.length > 0 && (
-              <div>
+            {/* Observation Log - Below Notable Moments if logs exist */}
+            {hasLogs && (
+              <div className="flex-shrink-0">
                 <h4 className="text-accent-rust text-xs uppercase tracking-wider mb-2 font-mono">
-                  Key Concepts
+                  Observation Log
                 </h4>
-                <div className="flex flex-wrap gap-2">
-                  {analysisResult.keyConcepts.map((concept, i) => (
-                    <span
-                      key={i}
-                      className="bg-[rgba(0,180,216,0.1)] text-accent-rust px-3 py-1.5 rounded text-sm border border-accent-rust-glow"
-                    >
-                      {concept}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Notable Moments (0-4 items, time-based if available) */}
-            {analysisResult.notableMoments.length > 0 && (
-              <div>
-                <h4 className="text-accent-rust text-xs uppercase tracking-wider mb-2 font-mono">
-                  Notable Moments
-                </h4>
-                <ul className="space-y-1 list-disc list-inside text-text-cream text-sm">
-                  {analysisResult.notableMoments.map((moment, i) => (
-                    <li key={i} className="leading-relaxed">
-                      {moment.timestampMs ? (
-                        <span className="text-text-dim font-mono text-xs">[{(moment.timestampMs / 1000).toFixed(1)}s] </span>
-                      ) : null}
-                      {moment.text}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Fallback: Show Observation Log if no structured data */}
-            {!analysisResult.summary && hasLogs && (
-              <div>
-                <h4 className="text-accent-rust text-xs uppercase tracking-wider mb-2 font-mono">
-                  Observations
-                </h4>
-                <div className="space-y-2">
+                <div className="space-y-2 max-h-32 overflow-y-auto">
                   {logItems.map((log, i) => (
-                    <p key={i} className="text-text-cream text-sm leading-relaxed">
+                    <div
+                      key={i}
+                      className="p-2 bg-bg-tertiary/50 border-l-2 border-accent-rust/50 rounded-r text-text-cream text-xs leading-relaxed"
+                    >
                       {log}
-                    </p>
+                    </div>
                   ))}
                 </div>
               </div>
             )}
+
+            {/* Structured Rubric - Compact */}
+            <div className="flex-shrink-0">
+              <h4 className="text-accent-rust text-xs uppercase tracking-wider mb-3 font-mono">
+                Analysis Rubric
+              </h4>
+              <div className="space-y-3">
+                {rubricSections.map((section) => {
+                  const items = rubricItems[section] || [];
+                  const hasItems = items.length > 0;
+                  const displayItems = items.slice(0, maxItemsPerSection);
+
+                  // Only show section if it has items (no placeholders for empty sections)
+                  if (!hasItems) return null;
+
+                  return (
+                    <div key={section} className="border-l-2 border-accent-rust/30 pl-3">
+                      <h5 className="text-text-cream text-xs font-semibold mb-1.5">{section}</h5>
+                      <ul className="space-y-1.5 list-none">
+                        {displayItems.map((item, i) => (
+                          <li key={i} className="text-text-cream/90 text-xs leading-relaxed pl-2 before:content-['•'] before:text-accent-rust before:font-bold before:mr-1.5">
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })}
+
+              </div>
+            </div>
+
+            {/* Notable Moments - Hide for short videos (<=20s) or when timestamps are unreliable */}
+            {(() => {
+              // Infer video duration: short videos (<6 items) correspond to <=20s videos (4s per item)
+              const isShortVideo = logItems.length < 6;
+              
+              // Filter moments: require timestampMs > 1 second (1000ms), filter out junk timestamps
+              const validMoments = analysisResult.notableMoments.filter(moment => {
+                // Require timestampMs to exist and be > 1 second
+                if (!moment.timestampMs || moment.timestampMs < 1000) {
+                  return false;
+                }
+                // If timestampSource is 'heuristic', timestamps are unreliable - hide
+                if (moment.timestampSource === 'heuristic') {
+                  return false;
+                }
+                return true;
+              });
+              
+              // Hide Notable Moments section entirely for short videos or when no valid moments
+              if (isShortVideo || validMoments.length === 0) {
+                return null;
+              }
+
+              // Format timestamp: mm:ss from timestampMs (milliseconds)
+              const formatTimestamp = (timestampMs: number): string => {
+                const totalSeconds = Math.floor(timestampMs / 1000);
+                const mins = Math.floor(totalSeconds / 60);
+                const secs = totalSeconds % 60;
+                return `${mins}:${secs.toString().padStart(2, '0')}`;
+              };
+
+              return (
+                <div className="flex-1 flex flex-col min-h-0">
+                  <h4 className="text-accent-rust text-xs uppercase tracking-wider mb-2 font-mono flex-shrink-0">
+                    Notable Moments
+                  </h4>
+                  <ul className="flex-1 space-y-1.5 list-none text-text-cream text-xs overflow-y-auto min-h-0">
+                    {validMoments.map((moment, i) => {
+                      const timeStr = formatTimestamp(moment.timestampMs);
+                      return (
+                        <li key={i} className="leading-relaxed pl-2 border-l-2 border-accent-rust/30">
+                          {timeStr} – {moment.text}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>
-    </div>
+    </div >
   );
 }

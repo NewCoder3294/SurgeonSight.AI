@@ -4,7 +4,6 @@ import CoachingSession from '../components/CoachingSession';
 import ExpertVideoPanel from '../components/ExpertVideoPanel';
 import ExpertSummaryPanel from '../components/ExpertSummaryPanel';
 import KeyConceptsFooter from '../components/KeyConceptsFooter';
-import { useExpertBaseline } from '../hooks/useExpertBaseline';
 
 export default function TrainingSession() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -19,9 +18,6 @@ export default function TrainingSession() {
   } | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
 
-  // Expert baseline hook for live comparison
-  const { storeBaseline, expertMetrics, isStored: hasExpertBaseline } = useExpertBaseline();
-
   // Refs for scrolling
   const videoPanelRef = useRef<HTMLDivElement>(null);
   const livePracticeSectionRef = useRef<HTMLElement>(null);
@@ -32,6 +28,9 @@ export default function TrainingSession() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
+
+  // Auto-scroll to CTA button when analysis completes
+
 
   const handleAnalysisStart = () => {
     setIsAnalyzing(true);
@@ -60,13 +59,6 @@ export default function TrainingSession() {
     setIsAnalyzing(false);
     setAnalysisComplete(true);
   };
-
-  // Store expert baseline when analysis completes
-  useEffect(() => {
-    if (analysisComplete && streamingNotes.length > 0 && analysisResult) {
-      storeBaseline('Surgical Procedure', streamingNotes, analysisResult);
-    }
-  }, [analysisComplete, streamingNotes, analysisResult, storeBaseline]);
 
   // Scroll past title when video is uploaded
   const handleVideoUploaded = () => {
@@ -113,6 +105,7 @@ export default function TrainingSession() {
               onAnalysisResult={handleAnalysisResult}
               onError={setAnalysisError}
               onVideoUploaded={handleVideoUploaded}
+
             />
 
             {/* Right: Summary Panel */}
@@ -125,7 +118,11 @@ export default function TrainingSession() {
             />
           </div>
 
-          {/* Key Concepts Section - Full width standalone box */}
+          {/* Key Concepts Footer - Renders below both panels, only after successful Overshoot parsing */}
+
+
+
+          {/* Key Concepts Section - Full width standalone box (Now inside the main section) */}
           <div className="mt-6">
             <div className="bg-bg-tertiary/30 border border-border-subtle">
               <div className="px-4 py-3 border-b border-border-subtle">
@@ -160,6 +157,8 @@ export default function TrainingSession() {
           )}
         </section>
 
+
+
         <div className="w-0.5 h-32 bg-gradient-to-b from-accent-rust to-transparent mx-auto opacity-30"></div>
 
         <section
@@ -172,10 +171,7 @@ export default function TrainingSession() {
           </div>
 
           <div className="relative min-h-[400px] transition-all duration-500 mt-6">
-            <CoachingSession
-              embedded={true}
-              expertMetrics={hasExpertBaseline ? expertMetrics : undefined}
-            />
+            <CoachingSession embedded={true} />
           </div>
         </section>
       </main>
