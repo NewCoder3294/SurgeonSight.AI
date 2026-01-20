@@ -54,123 +54,110 @@ export default function VoiceFeedbackDisplay({
     };
 
     return (
-        <div className="relative overflow-hidden">
-            {/* Main feedback card with glass morphism */}
-            <div className="relative bg-gradient-to-br from-[rgba(20,25,40,0.95)] to-[rgba(30,35,50,0.9)] backdrop-blur-xl rounded-xl border border-white/10 overflow-hidden">
-                {/* Animated gradient border */}
-                <div className="absolute inset-0 bg-gradient-to-r from-accent-rust/20 via-transparent to-accent-rust/20 animate-pulse opacity-50" />
-
-                {/* Header */}
-                <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-                    <div className="flex items-center gap-3">
-                        {/* Speaking indicator with glow */}
-                        <div className={`relative w-3 h-3 rounded-full transition-all duration-300 ${isSpeaking
-                            ? 'bg-green-400 shadow-[0_0_12px_rgba(74,222,128,0.8)] animate-pulse'
-                            : voiceEnabled
-                                ? 'bg-accent-rust shadow-[0_0_8px_rgba(205,127,50,0.5)]'
-                                : 'bg-gray-500'
-                            }`}>
-                            {isSpeaking && (
-                                <div className="absolute inset-0 bg-green-400 rounded-full animate-ping opacity-75" />
-                            )}
-                        </div>
-                        <span className="font-display text-sm tracking-wider text-text-cream uppercase">
-                            AI Coach
-                        </span>
-                        {isSpeaking && (
-                            <span className="text-xs text-green-400 animate-pulse">Speaking...</span>
-                        )}
-                    </div>
-
-                    {/* Controls */}
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={onTestVoice}
-                            className="px-2 py-1 text-xs font-mono text-text-dim hover:text-accent-rust transition-colors"
-                            title="Test voice"
-                        >
-                            🔊 Test
-                        </button>
-                        <button
-                            onClick={onToggleVoice}
-                            className={`px-3 py-1.5 text-xs font-mono rounded-lg transition-all duration-300 ${voiceEnabled
-                                ? 'bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30'
-                                : 'bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30'
-                                }`}
-                        >
-                            Voice {voiceEnabled ? 'ON' : 'OFF'}
-                        </button>
-                    </div>
+        <div className="bg-bg-secondary border border-border-subtle overflow-hidden">
+            {/* Header - matching other panels with full-width border */}
+            <div className="flex items-center justify-between px-4 pt-4 pb-2 border-b border-border-subtle">
+                <div className="flex items-center gap-2">
+                    <h3 className="text-xs tracking-widest text-text-muted uppercase">AI Coach</h3>
+                    {/* Speaking indicator */}
+                    <div className={`w-2 h-2 rounded-full transition-all duration-300 ${isSpeaking
+                        ? 'bg-success animate-pulse'
+                        : voiceEnabled
+                            ? 'bg-accent-rust'
+                            : 'bg-text-dim'
+                        }`} />
+                    {isSpeaking && (
+                        <span className="text-[0.6rem] text-success animate-pulse uppercase">Speaking</span>
+                    )}
                 </div>
 
+                {/* Controls */}
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={onTestVoice}
+                        className="px-2 py-0.5 text-[0.6rem] font-mono text-text-dim hover:text-accent-rust transition-colors uppercase"
+                        title="Test voice"
+                    >
+                        🔊 Test
+                    </button>
+                    <button
+                        onClick={onToggleVoice}
+                        className={`px-2 py-0.5 text-[0.6rem] font-mono uppercase transition-all duration-300 border ${voiceEnabled
+                            ? 'bg-success/20 text-success border-success/30 hover:bg-success/30'
+                            : 'bg-error/20 text-error border-error/30 hover:bg-error/30'
+                            }`}
+                    >
+                        {voiceEnabled ? 'ON' : 'OFF'}
+                    </button>
+                </div>
+            </div>
+
+            {/* Content wrapper with padding */}
+            <div className="p-4">
                 {/* Current message with typing effect */}
-                <div className="px-4 py-4 min-h-[80px]">
+                <div className="bg-bg-tertiary border border-border-subtle rounded p-3 min-h-[60px] mb-3">
                     {currentMessage ? (
-                        <div className="flex items-start gap-3">
-                            <span className="text-2xl">
+                        <div className="flex items-start gap-2">
+                            <span className="text-lg">
                                 {getTypeIcon(messageHistory[messageHistory.length - 1]?.type || 'coaching')}
                             </span>
-                            <div className="flex-1">
-                                <p className={`font-display text-xl font-semibold leading-relaxed tracking-wide ${getTypeColor(messageHistory[messageHistory.length - 1]?.type || 'coaching')
-                                    }`}>
-                                    {displayedText}
-                                    {displayedText !== currentMessage && (
-                                        <span className="inline-block w-0.5 h-5 ml-1 bg-current animate-blink" />
-                                    )}
-                                </p>
-                            </div>
+                            <p className={`font-mono text-sm leading-relaxed ${getTypeColor(messageHistory[messageHistory.length - 1]?.type || 'coaching')
+                                }`}>
+                                {displayedText}
+                                {displayedText !== currentMessage && (
+                                    <span className="inline-block w-0.5 h-4 ml-1 bg-current animate-blink" />
+                                )}
+                            </p>
                         </div>
                     ) : (
                         <div className="flex items-center justify-center h-full text-text-dim">
-                            <span className="font-mono text-sm">
+                            <span className="font-mono text-xs">
                                 {voiceEnabled
                                     ? '🎯 Waiting for hand detection...'
-                                    : '🔇 Voice disabled - click to enable'}
+                                    : '🔇 Voice disabled'}
                             </span>
                         </div>
                     )}
                 </div>
 
                 {/* Stats bar */}
-                <div className="px-4 py-2 border-t border-white/10 bg-black/20">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4 text-xs font-mono text-text-dim">
-                            <span className="flex items-center gap-1">
-                                <span className="text-orange-400">⚡</span>
-                                {stats.corrections} corrections
-                            </span>
-                            <span className="flex items-center gap-1">
-                                <span className="text-green-400">✓</span>
-                                {stats.encouragements} praise
-                            </span>
-                        </div>
-                        <div className="flex items-center gap-4 text-xs font-mono">
-                            <span className="text-accent-rust">
-                                Score: {stats.overallScore}%
-                            </span>
-                            <span className="text-green-400">
-                                Streak: {Math.round(stats.currentStreak)}s
-                            </span>
-                        </div>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                    <div className="bg-bg-tertiary p-2 border border-border-subtle rounded">
+                        <span className="font-mono text-[0.6rem] text-text-dim uppercase block mb-1">Score</span>
+                        <span className={`font-mono text-lg ${stats.overallScore >= 70 ? 'text-success' : stats.overallScore >= 50 ? 'text-warning' : 'text-error'}`}>
+                            {stats.overallScore}%
+                        </span>
                     </div>
+                    <div className="bg-bg-tertiary p-2 border border-border-subtle rounded">
+                        <span className="font-mono text-[0.6rem] text-text-dim uppercase block mb-1">Streak</span>
+                        <span className="font-mono text-lg text-success">
+                            {Math.round(stats.currentStreak)}s
+                        </span>
+                    </div>
+                </div>
 
-                    {/* Progress bar for score */}
-                    <div className="mt-2 h-1.5 bg-black/30 rounded-full overflow-hidden">
-                        <div
-                            className={`h-full transition-all duration-500 rounded-full ${stats.overallScore >= 80 ? 'bg-green-500' :
-                                stats.overallScore >= 60 ? 'bg-yellow-500' :
-                                    stats.overallScore >= 40 ? 'bg-orange-500' : 'bg-red-500'
-                                }`}
-                            style={{ width: `${stats.overallScore}%` }}
-                        />
-                    </div>
+                {/* Progress bar for score */}
+                <div className="h-1.5 bg-bg-tertiary rounded-full overflow-hidden">
+                    <div
+                        className={`h-full transition-all duration-500 rounded-full ${stats.overallScore >= 80 ? 'bg-success' :
+                            stats.overallScore >= 60 ? 'bg-warning' :
+                                stats.overallScore >= 40 ? 'bg-accent-rust' : 'bg-error'
+                            }`}
+                        style={{ width: `${stats.overallScore}%` }}
+                    />
+                </div>
+
+                {/* Compact stats */}
+                <div className="flex items-center justify-between mt-2 text-[0.6rem] font-mono text-text-dim">
+                    <span>⚡ {stats.corrections} corrections</span>
+                    <span>✓ {stats.encouragements} praise</span>
                 </div>
 
                 {/* History toggle */}
                 {messageHistory.length > 1 && (
                     <button
                         onClick={() => setShowHistory(!showHistory)}
-                        className="w-full px-4 py-2 text-xs font-mono text-text-dim text-center hover:bg-white/5 transition-colors border-t border-white/5"
+                        className="w-full mt-2 py-1 text-[0.6rem] font-mono text-text-dim text-center hover:text-text-cream transition-colors border-t border-border-subtle"
                     >
                         {showHistory ? '▲ Hide History' : `▼ Show History (${messageHistory.length})`}
                     </button>
@@ -178,11 +165,11 @@ export default function VoiceFeedbackDisplay({
 
                 {/* Message history */}
                 {showHistory && (
-                    <div className="px-4 py-2 border-t border-white/10 max-h-32 overflow-y-auto">
+                    <div className="mt-2 pt-2 border-t border-border-subtle max-h-24 overflow-y-auto">
                         {messageHistory.slice().reverse().slice(1).map((msg, i) => (
                             <div
                                 key={msg.timestamp}
-                                className={`py-1 text-sm font-mono ${getTypeColor(msg.type)} opacity-${Math.max(30, 80 - i * 15)}`}
+                                className={`py-0.5 text-xs font-mono ${getTypeColor(msg.type)} opacity-${Math.max(30, 80 - i * 15)}`}
                             >
                                 {getTypeIcon(msg.type)} {msg.text}
                             </div>

@@ -23,17 +23,32 @@ interface HandLandmark {
     z: number;
 }
 
+interface HandDisplayData {
+    landmarks: HandLandmark[];
+    handedness: 'Left' | 'Right';
+    metrics?: SurgicalMetrics;
+}
+
 interface Hand3DVisualizationProps {
     metrics: SurgicalMetrics | null;
     landmarks?: HandLandmark[];
     handedness?: 'Left' | 'Right';
+    // Support for multiple hands
+    hands?: HandDisplayData[];
 }
 
 export default function Hand3DVisualization({
     metrics,
     landmarks,
-    handedness = 'Right'
+    handedness = 'Right',
+    hands = []
 }: Hand3DVisualizationProps) {
+    // Normalize input: use 'hands' array if provided, otherwise construct from single hand props
+    const handsToRender: HandDisplayData[] = hands.length > 0
+        ? hands
+        : landmarks && landmarks.length >= 21
+            ? [{ landmarks, handedness, metrics: metrics || undefined }]
+            : [];
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     useEffect(() => {
@@ -53,12 +68,27 @@ export default function Hand3DVisualization({
         // Clear canvas
         ctx.clearRect(0, 0, rect.width, rect.height);
 
-        // Draw 3D-style hand skeleton
-        draw3DHand(ctx, rect.width, rect.height, metrics, landmarks, handedness);
-    }, [metrics, landmarks, handedness]);
+        // Draw all detected hands
+        if (handsToRender.length > 0) {
+            handsToRender.forEach((hand, index) => {
+                // Offset each hand slightly to avoid overlap if needed
+                const offsetX = handsToRender.length > 1 ? (index === 0 ? -0.15 : 0.15) : 0;
+                draw3DHand(
+                    ctx,
+                    rect.width,
+                    rect.height,
+                    hand.metrics || metrics,
+                    hand.landmarks,
+                    hand.handedness,
+                    offsetX
+                );
+            });
+        }
+        // When no hands are detected, canvas stays cleared (no fallback drawing)
+    }, [handsToRender, metrics, landmarks, handedness]);
 
     return (
-        <div className="relative w-full h-full min-h-[200px] bg-bg-tertiary rounded border border-border-subtle overflow-hidden">
+        <div className="relative w-full h-[220px] bg-bg-tertiary rounded overflow-hidden">
             {/* 3D perspective container */}
             <div
                 className="absolute inset-0"
@@ -112,7 +142,9 @@ export default function Hand3DVisualization({
             {/* Hand label */}
             <div className="absolute top-2 left-2">
                 <span className="font-mono text-[0.55rem] tracking-wider text-text-dim uppercase bg-bg-secondary/80 px-1.5 py-0.5">
-                    {handedness} Hand • 3D View
+                    {handsToRender.length > 0
+                        ? handsToRender.map(h => h.handedness).join(' + ') + ' Hand' + (handsToRender.length > 1 ? 's' : '')
+                        : `${handedness} Hand`} • 3D View
                 </span>
             </div>
         </div>
@@ -126,9 +158,10 @@ function draw3DHand(
     height: number,
     metrics: SurgicalMetrics | null,
     landmarks?: HandLandmark[],
-    _handedness?: string  // Reserved for future mirror mode
+    _handedness?: string,  // Reserved for future use
+    offsetX: number = 0    // Horizontal offset for multiple hands
 ) {
-    const centerX = width / 2;
+    const centerX = width / 2 + (offsetX * width * 0.5);  // Apply offset
     const centerY = height / 2;
     const scale = Math.min(width, height) * 0.35;
 
@@ -143,6 +176,7 @@ function draw3DHand(
             z: l.z * 2
         }))
         : defaultPositions;
+
 
     // Apply 3D projection
     const projected = points.map(p => ({

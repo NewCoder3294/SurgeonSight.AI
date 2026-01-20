@@ -265,7 +265,15 @@ export function useMediaPipeHands({
 
             if (results.landmarks && results.landmarks.length > 0) {
                 const processedHands: HandData[] = results.landmarks.map((landmarks: any[], index: number) => {
-                    // Calculate surgical metrics
+                    // Use original landmark coordinates - the canvas already has CSS -scale-x-100
+                    // applied which handles the mirroring visually. No need to flip in code.
+                    const mirroredLandmarks: HandLandmark[] = landmarks.map((lm: any) => ({
+                        x: lm.x,  // Keep original X - CSS transform handles mirroring
+                        y: lm.y,
+                        z: lm.z
+                    }));
+
+                    // Calculate surgical metrics using original landmarks (for accurate angle math)
                     const scalpelAngle = calculateAngle(landmarks[WRIST], landmarks[INDEX_TIP]);
 
                     // Calculate pinch angle (thumb tip to index MCP to index tip)
@@ -289,9 +297,14 @@ export function useMediaPipeHands({
                     }
                     prevLandmarksRef.current = [...landmarks];
 
+                    // Swap handedness since the video is mirrored
+                    // MediaPipe detects the hand in un-mirrored space, but display is mirrored
+                    const detectedHandedness = results.handednesses?.[index]?.[0]?.categoryName || 'Right';
+                    const mirroredHandedness: 'Left' | 'Right' = detectedHandedness === 'Left' ? 'Right' : 'Left';
+
                     return {
-                        landmarks,
-                        handedness: results.handednesses?.[index]?.[0]?.categoryName || 'Right',
+                        landmarks: mirroredLandmarks,  // Use mirrored landmarks for display
+                        handedness: mirroredHandedness,  // Swap handedness to match visual
                         metrics: {
                             scalpelAngle: Math.abs(scalpelAngle),
                             pinchAngle,
@@ -308,6 +321,7 @@ export function useMediaPipeHands({
                 onHandsDetected?.(processedHands);
             } else {
                 setHands([]);
+                onHandsDetected?.([]);  // Notify parent that hands are gone so overlay clears
             }
         } catch (err) {
             // Silently handle frame processing errors

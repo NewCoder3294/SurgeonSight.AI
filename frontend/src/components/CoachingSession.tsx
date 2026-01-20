@@ -447,90 +447,93 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
             )}
 
             {/* Main content */}
-            <main className="flex-1 flex flex-col gap-6 max-[1000px]:gap-4">
-                <div className="grid grid-cols-[1fr_1fr] gap-6 w-full mx-auto max-[1000px]:grid-cols-1">
-                    {/* Left: Video feed with hand tracking overlay */}
-                    <div className="relative flex flex-col bg-black/20 rounded-lg overflow-hidden border border-white/5">
-                        <CornerBrackets size="xl" animated>
-                            <VideoFeed
-                                ref={videoFeedRef}
-                                detectionBox={detectionBox}
-                                hands={detectedHands}
-                                gripState={mockGrip}
-                                showMetrics={true}
-                                metrics={currentMetrics}
-                                expertAngleTarget={expertMetrics?.angleTarget}
-                            />
-                        </CornerBrackets>
-                        {mediaPipeLoading && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                                <span className="font-mono text-sm text-accent-rust animate-pulse">Loading MediaPipe...</span>
-                            </div>
-                        )}
-                    </div>
+            <main className="flex-1 flex flex-col gap-6 p-6 max-[1000px]:gap-4 max-[1000px]:p-4">
+                {/* Top: Video feed with hand tracking overlay - Full width */}
+                <div className="relative flex flex-col bg-black/20 rounded-lg overflow-hidden border border-white/5 aspect-video max-h-[60vh]">
+                    <CornerBrackets size="xl" animated>
+                        <VideoFeed
+                            ref={videoFeedRef}
+                            detectionBox={detectionBox}
+                            hands={detectedHands}
+                            gripState={mockGrip}
+                            showMetrics={true}
+                            metrics={currentMetrics}
+                            expertAngleTarget={expertMetrics?.angleTarget}
+                        />
+                    </CornerBrackets>
+                    {mediaPipeLoading && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                            <span className="font-mono text-sm text-accent-rust animate-pulse">Loading MediaPipe...</span>
+                        </div>
+                    )}
+                </div>
 
-                    {/* Right: Metrics Panel + Live Feedback */}
-                    <div className="flex flex-col gap-4">
-                        {/* Real-time Metrics */}
-                        <div className="bg-bg-secondary border border-border-subtle p-4">
-                            <h3 className="text-xs tracking-widest mb-3 pb-1 border-b border-border-subtle text-text-muted uppercase">Surgical Metrics</h3>
+                {/* Bottom: Three-column layout for Metrics, 3D View, and AI Coach */}
+                <div className="grid grid-cols-3 gap-4 max-[1000px]:grid-cols-1">
+                    {/* Surgical Metrics */}
+                    <div className="bg-bg-secondary border border-border-subtle overflow-hidden">
+                        <h3 className="text-xs tracking-widest px-4 pt-4 pb-2 border-b border-border-subtle text-text-muted uppercase">Surgical Metrics</h3>
+                        <div className="p-4">
                             <div className="grid grid-cols-2 gap-3">
-                                <div className="bg-bg-tertiary p-3 border border-border-subtle">
+                                <div className="bg-bg-tertiary p-3 border border-border-subtle rounded">
                                     <span className="font-mono text-[0.6rem] text-text-dim uppercase block mb-1">Angle</span>
                                     <span className="font-mono text-2xl text-accent-rust">
                                         {currentMetrics ? `${currentMetrics.scalpelAngle.toFixed(1)}°` : '--'}
                                     </span>
                                 </div>
-                                <div className="bg-bg-tertiary p-3 border border-border-subtle">
+                                <div className="bg-bg-tertiary p-3 border border-border-subtle rounded">
                                     <span className="font-mono text-[0.6rem] text-text-dim uppercase block mb-1">Steadiness</span>
                                     <span className={`font-mono text-2xl ${currentMetrics && currentMetrics.steadiness > 70 ? 'text-success' : 'text-warning'}`}>
                                         {currentMetrics ? `${currentMetrics.steadiness.toFixed(0)}%` : '--'}
                                     </span>
                                 </div>
-                                <div className="bg-bg-tertiary p-3 border border-border-subtle">
+                                <div className="bg-bg-tertiary p-3 border border-border-subtle rounded">
                                     <span className="font-mono text-[0.6rem] text-text-dim uppercase block mb-1">Grip Type</span>
                                     <span className={`font-mono text-lg uppercase ${currentMetrics?.gripType === 'pencil' ? 'text-success' : currentMetrics?.gripType === 'power' ? 'text-warning' : 'text-text-dim'}`}>
                                         {currentMetrics?.gripType || '--'}
                                     </span>
                                 </div>
-                                <div className="bg-bg-tertiary p-3 border border-border-subtle">
+                                <div className="bg-bg-tertiary p-3 border border-border-subtle rounded">
                                     <span className="font-mono text-[0.6rem] text-text-dim uppercase block mb-1">Speed</span>
                                     <span className="font-mono text-2xl text-text-cream">
                                         {currentMetrics ? currentMetrics.speed.toFixed(1) : '--'}
                                     </span>
                                 </div>
                             </div>
-                            <div className="mt-3 text-center">
+                            <div className="px-4 pb-4 text-center">
                                 <span className={`font-mono text-xs ${detectedHands.length > 0 ? 'text-success' : 'text-text-dim'}`}>
                                     {detectedHands.length > 0 ? `✓ ${detectedHands.length} hand(s) detected` : '○ Waiting for hand...'}
                                 </span>
                             </div>
                         </div>
+                    </div>
 
-                        {/* 3D Hand Visualization */}
-                        <div className="bg-bg-secondary border border-border-subtle p-4">
-                            <div className="flex justify-between items-center mb-3 pb-1 border-b border-border-subtle">
-                                <h3 className="text-xs tracking-widest text-text-muted uppercase">3D Hand View</h3>
-                            </div>
+                    {/* 3D Hand Visualization */}
+                    <div className="bg-bg-secondary border border-border-subtle overflow-hidden">
+                        <h3 className="text-xs tracking-widest px-4 pt-4 pb-2 border-b border-border-subtle text-text-muted uppercase">3D Hand View</h3>
+                        <div className="p-4">
                             <Hand3DVisualization
                                 metrics={currentMetrics}
-                                landmarks={detectedHands[0]?.landmarks}
-                                handedness={detectedHands[0]?.handedness}
+                                hands={detectedHands.map(hand => ({
+                                    landmarks: hand.landmarks,
+                                    handedness: hand.handedness,
+                                    metrics: hand.metrics
+                                }))}
                             />
                         </div>
-
-                        {/* NEW: Premium Voice Feedback Display with typing animation */}
-                        <VoiceFeedbackDisplay
-                            isSpeaking={voiceCoach.isSpeaking}
-                            displayedText={voiceCoach.displayedText}
-                            currentMessage={voiceCoach.currentMessage}
-                            messageHistory={voiceCoach.messageHistory}
-                            stats={voiceCoach.stats}
-                            voiceEnabled={voiceCoach.voiceEnabled}
-                            onToggleVoice={voiceCoach.toggleVoice}
-                            onTestVoice={voiceCoach.testVoice}
-                        />
                     </div>
+
+                    {/* AI Coach Voice Feedback */}
+                    <VoiceFeedbackDisplay
+                        isSpeaking={voiceCoach.isSpeaking}
+                        displayedText={voiceCoach.displayedText}
+                        currentMessage={voiceCoach.currentMessage}
+                        messageHistory={voiceCoach.messageHistory}
+                        stats={voiceCoach.stats}
+                        voiceEnabled={voiceCoach.voiceEnabled}
+                        onToggleVoice={voiceCoach.toggleVoice}
+                        onTestVoice={voiceCoach.testVoice}
+                    />
                 </div>
             </main>
 
