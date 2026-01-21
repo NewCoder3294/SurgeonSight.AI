@@ -158,7 +158,7 @@ function draw3DHand(
     height: number,
     metrics: SurgicalMetrics | null,
     landmarks?: HandLandmark[],
-    _handedness?: string,  // Reserved for future use
+    _handedness: string = 'Right',  // Reserved for future use
     offsetX: number = 0    // Horizontal offset for multiple hands
 ) {
     const centerX = width / 2 + (offsetX * width * 0.5);  // Apply offset
@@ -169,9 +169,11 @@ function draw3DHand(
     const defaultPositions = generateDefaultHand(metrics?.fingerBend || 0, metrics?.pinchAngle || 45);
 
     // Use landmarks if available, otherwise use default
+    // Mirror x-coordinates to match the mirrored video feed (like looking in a mirror)
+    // This ensures the thumb appears on the correct side of the 3D hand
     const points = landmarks && landmarks.length >= 21
         ? landmarks.map(l => ({
-            x: (l.x - 0.5) * 2,
+            x: ((1 - l.x) - 0.5) * 2,  // Flip x to match mirrored video
             y: (l.y - 0.5) * 2,
             z: l.z * 2
         }))

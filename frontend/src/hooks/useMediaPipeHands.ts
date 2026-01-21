@@ -21,7 +21,15 @@ const INDEX_DIP = 7;
 const INDEX_TIP = 8;
 const MIDDLE_TIP = 12;
 const RING_TIP = 16;
+const PINKY_MCP = 17;
 const PINKY_TIP = 20;
+
+// Exponential Moving Average for smoothing metrics
+// alpha: higher = more responsive, lower = smoother (0.2-0.4 recommended)
+function ema(current: number, previous: number | null, alpha = 0.3): number {
+    if (previous === null) return current;
+    return alpha * current + (1 - alpha) * previous;
+}
 
 export interface HandLandmark {
     x: number;
@@ -103,7 +111,7 @@ function distance(p1: HandLandmark, p2: HandLandmark): number {
     );
 }
 
-// Classify grip type based on finger positions
+// Classify grip type based on finger positions with adaptive thresholds
 function classifyGrip(landmarks: HandLandmark[]): { type: 'pencil' | 'power' | 'unknown'; confidence: number } {
     if (landmarks.length < 21) {
         return { type: 'unknown', confidence: 0 };
@@ -112,40 +120,55 @@ function classifyGrip(landmarks: HandLandmark[]): { type: 'pencil' | 'power' | '
     const wrist = landmarks[WRIST];
     const thumbTip = landmarks[THUMB_TIP];
     const indexTip = landmarks[INDEX_TIP];
+    const indexMcp = landmarks[INDEX_MCP];
     const middleTip = landmarks[MIDDLE_TIP];
     const ringTip = landmarks[RING_TIP];
     const pinkyTip = landmarks[PINKY_TIP];
+    const pinkyMcp = landmarks[PINKY_MCP];
+
+    // Calculate adaptive thresholds based on palm width
+    const palmWidth = distance(indexMcp, pinkyMcp);
+    const wristToIndex = distance(wrist, indexTip);
+    const handSize = wristToIndex;
 
     // Pencil grip: thumb and index close together, other fingers curled
     const thumbIndexDist = distance(thumbTip, indexTip);
     const indexMiddleDist = distance(indexTip, middleTip);
-    const wristToIndex = distance(wrist, indexTip);
 
     // Normalize distances by hand size
-    const handSize = wristToIndex;
     const normalizedThumbIndex = thumbIndexDist / handSize;
     const normalizedIndexMiddle = indexMiddleDist / handSize;
 
-    // Check ring and pinky curl (distance from wrist relative to index)
-    const ringDist = distance(wrist, ringTip) / handSize;
-    const pinkyDist = distance(wrist, pinkyTip) / handSize;
+    // Adaptive thresholds based on palm width
+    const pencilThreshold = palmWidth * 0.6;  // ~60% of palm width
+    const curlThreshold = palmWidth * 1.2;    // Curled fingers closer to wrist
 
-    // Pencil grip characteristics
-    if (normalizedThumbIndex < 0.3 && ringDist < 0.6 && pinkyDist < 0.6) {
-        return { type: 'pencil', confidence: 0.8 };
+    // Check ring and pinky curl (distance from wrist relative to index)
+    const ringDist = distance(wrist, ringTip);
+    const pinkyDist = distance(wrist, pinkyTip);
+
+    // Pencil grip: thumb-index pinch + other fingers curled
+    if (thumbIndexDist < pencilThreshold && ringDist < curlThreshold && pinkyDist < curlThreshold) {
+        // Calculate confidence based on how well it matches pencil grip
+        const pinchScore = 1 - (thumbIndexDist / pencilThreshold);
+        const curlScore = 1 - ((ringDist + pinkyDist) / (2 * curlThreshold));
+        const confidence = Math.min(0.95, 0.6 + (pinchScore + curlScore) * 0.2);
+        return { type: 'pencil', confidence };
     }
 
-    // Power grip: all fingers grouped together
-    if (normalizedThumbIndex < 0.4 && normalizedIndexMiddle < 0.2) {
-        return { type: 'power', confidence: 0.7 };
+    // Power grip: all fingers grouped together, thumb wrapped
+    if (normalizedThumbIndex < 0.4 && normalizedIndexMiddle < 0.25) {
+        const groupScore = 1 - normalizedIndexMiddle / 0.25;
+        const confidence = Math.min(0.9, 0.5 + groupScore * 0.3);
+        return { type: 'power', confidence };
     }
 
     return { type: 'unknown', confidence: 0.3 };
 }
 
-// Calculate steadiness from position history
+// Calculate steadiness from position history, normalized by hand size
 function calculateSteadiness(current: HandLandmark[], history: HandLandmark[][]): number {
-    if (history.length < 3) return 50; // Not enough data
+    if (history.length < 3) return 70; // Not enough data, assume moderate steadiness
 
     const wristHistory = history.map(h => h[WRIST]).concat([current[WRIST]]);
 
@@ -157,24 +180,44 @@ function calculateSteadiness(current: HandLandmark[], history: HandLandmark[][])
         return sum + Math.pow(p.x - avgX, 2) + Math.pow(p.y - avgY, 2);
     }, 0) / wristHistory.length;
 
-    // Convert to 0-100 scale (lower variance = higher steadiness)
-    const steadiness = Math.max(0, Math.min(100, 100 - variance * 50000));
+    // Calculate standard deviation and normalize by hand size
+    const stdDev = Math.sqrt(variance);
+    const handSize = distance(current[WRIST], current[INDEX_TIP]);
+
+    // Avoid division by zero
+    if (handSize < 0.01) return 50;
+
+    // Normalized jitter: stdDev relative to hand size
+    // A perfectly still hand has ~0 jitter, shaky hand has higher values
+    const normalizedJitter = (stdDev / handSize) * 100;
+
+    // Map to 0-100 steadiness scale
+    // jitter of 0 = 100% steady, jitter of 50+ = 0% steady (forgiving scale)
+    const steadiness = Math.max(0, Math.min(100, 100 - normalizedJitter * 2));
     return steadiness;
 }
 
-// Calculate motion speed
+// Calculate motion speed in inches per second (estimated)
+// Assumes typical webcam setup: hand ~2ft from camera, occupying ~30% of 640px frame
+// Hand width ~3.5in maps to ~192px, so 1 normalized unit ≈ 6.5 inches
 function calculateSpeed(current: HandLandmark[], prev: HandLandmark[] | null): number {
     if (!prev || prev.length < 21) return 0;
 
     const currentWrist = current[WRIST];
     const prevWrist = prev[WRIST];
 
-    const speed = Math.sqrt(
+    // Calculate normalized distance moved
+    const normalizedDist = Math.sqrt(
         Math.pow(currentWrist.x - prevWrist.x, 2) +
         Math.pow(currentWrist.y - prevWrist.y, 2)
-    ) * 100; // Scale for readability
+    );
 
-    return speed;
+    // Convert to inches: multiply by ~6.5 (estimated inches per normalized unit)
+    // At 15 FPS, multiply by 15 to get inches/second
+    const inchesPerFrame = normalizedDist * 6.5;
+    const inchesPerSecond = inchesPerFrame * 15;  // Assuming ~15 FPS target
+
+    return inchesPerSecond;
 }
 
 export function useMediaPipeHands({
@@ -190,8 +233,11 @@ export function useMediaPipeHands({
     const handLandmarkerRef = useRef<any>(null);
     const animationFrameRef = useRef<number | null>(null);
     const lastFrameTimeRef = useRef<number>(0);
-    const landmarkHistoryRef = useRef<HandLandmark[][]>([]);
-    const prevLandmarksRef = useRef<HandLandmark[] | null>(null);
+
+    // Per-hand tracking using Maps keyed by handedness
+    const landmarkHistoryRef = useRef<Map<string, HandLandmark[][]>>(new Map());
+    const prevLandmarksRef = useRef<Map<string, HandLandmark[]>>(new Map());
+    const prevMetricsRef = useRef<Map<string, SurgicalMetrics>>(new Map());
 
     // Initialize MediaPipe
     useEffect(() => {
@@ -215,9 +261,9 @@ export function useMediaPipeHands({
                     },
                     runningMode: 'VIDEO',
                     numHands: 2,
-                    minHandDetectionConfidence: 0.5,
-                    minHandPresenceConfidence: 0.5,
-                    minTrackingConfidence: 0.5
+                    minHandDetectionConfidence: 0.7,  // Higher = fewer false positives
+                    minHandPresenceConfidence: 0.6,
+                    minTrackingConfidence: 0.4        // Lower = smoother tracking
                 });
 
                 handLandmarkerRef.current = handLandmarker;
@@ -265,6 +311,10 @@ export function useMediaPipeHands({
 
             if (results.landmarks && results.landmarks.length > 0) {
                 const processedHands: HandData[] = results.landmarks.map((landmarks: any[], index: number) => {
+                    // Get handedness first so we can use it as key for per-hand tracking
+                    const handedness: 'Left' | 'Right' =
+                        (results.handednesses?.[index]?.[0]?.categoryName as 'Left' | 'Right') || 'Right';
+
                     // Use original landmark coordinates - the canvas already has CSS -scale-x-100
                     // applied which handles the mirroring visually. No need to flip in code.
                     const mirroredLandmarks: HandLandmark[] = landmarks.map((lm: any) => ({
@@ -272,6 +322,11 @@ export function useMediaPipeHands({
                         y: lm.y,
                         z: lm.z
                     }));
+
+                    // Get per-hand history and previous data
+                    const handHistory = landmarkHistoryRef.current.get(handedness) || [];
+                    const prevLandmarks = prevLandmarksRef.current.get(handedness) || null;
+                    const prevMetrics = prevMetricsRef.current.get(handedness) || null;
 
                     // Calculate surgical metrics using original landmarks (for accurate angle math)
                     const scalpelAngle = calculateAngle(landmarks[WRIST], landmarks[INDEX_TIP]);
@@ -287,33 +342,35 @@ export function useMediaPipeHands({
                     const fingerBend = calculateFingerBend(landmarks);
 
                     const grip = classifyGrip(landmarks);
-                    const steadiness = calculateSteadiness(landmarks, landmarkHistoryRef.current);
-                    const speed = calculateSpeed(landmarks, prevLandmarksRef.current);
+                    const steadiness = calculateSteadiness(landmarks, handHistory);
+                    const speed = calculateSpeed(landmarks, prevLandmarks);
 
-                    // Update history (keep last 10 frames)
-                    landmarkHistoryRef.current.push([...landmarks]);
-                    if (landmarkHistoryRef.current.length > 10) {
-                        landmarkHistoryRef.current.shift();
+                    // Update per-hand history (keep last 10 frames)
+                    handHistory.push([...landmarks]);
+                    if (handHistory.length > 10) {
+                        handHistory.shift();
                     }
-                    prevLandmarksRef.current = [...landmarks];
+                    landmarkHistoryRef.current.set(handedness, handHistory);
+                    prevLandmarksRef.current.set(handedness, [...landmarks]);
 
-                    // Swap handedness since the video is mirrored
-                    // MediaPipe detects the hand in un-mirrored space, but display is mirrored
-                    const detectedHandedness = results.handednesses?.[index]?.[0]?.categoryName || 'Right';
-                    const mirroredHandedness: 'Left' | 'Right' = detectedHandedness === 'Left' ? 'Right' : 'Left';
+                    // Apply EMA smoothing to metrics for stability
+                    const smoothedMetrics: SurgicalMetrics = {
+                        scalpelAngle: ema(Math.abs(scalpelAngle), prevMetrics?.scalpelAngle ?? null, 0.4),
+                        pinchAngle: ema(pinchAngle, prevMetrics?.pinchAngle ?? null, 0.3),
+                        fingerBend: ema(fingerBend, prevMetrics?.fingerBend ?? null, 0.3),
+                        steadiness: ema(steadiness, prevMetrics?.steadiness ?? null, 0.2),  // More smoothing for steadiness
+                        speed: ema(speed, prevMetrics?.speed ?? null, 0.3),
+                        gripType: grip.type,
+                        gripConfidence: grip.confidence
+                    };
+
+                    // Store for next frame (per-hand)
+                    prevMetricsRef.current.set(handedness, smoothedMetrics);
 
                     return {
                         landmarks: mirroredLandmarks,  // Use mirrored landmarks for display
-                        handedness: mirroredHandedness,  // Swap handedness to match visual
-                        metrics: {
-                            scalpelAngle: Math.abs(scalpelAngle),
-                            pinchAngle,
-                            fingerBend,
-                            steadiness,
-                            speed,
-                            gripType: grip.type,
-                            gripConfidence: grip.confidence
-                        }
+                        handedness: handedness,  // Use handedness directly from MediaPipe
+                        metrics: smoothedMetrics
                     };
                 });
 

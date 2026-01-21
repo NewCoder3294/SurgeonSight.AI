@@ -1,9 +1,16 @@
+import sys
+from pathlib import Path
+
+# Add parent directory to path so we can import from sibling 'models' folder
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from baseline import router as baseline_router
 from session import router as session_router
 from summary import router as summary_router
+from models.api import router as models_router
 from store import BASELINE, SESSIONS
 
 app = FastAPI(title="SurgeonSight API", version="1.0.0")
@@ -19,6 +26,7 @@ app.add_middleware(
 app.include_router(baseline_router)
 app.include_router(session_router)
 app.include_router(summary_router)
+app.include_router(models_router)
 
 
 @app.get("/health")
