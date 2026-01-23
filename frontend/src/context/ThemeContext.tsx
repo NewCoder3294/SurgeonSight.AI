@@ -4,9 +4,9 @@ const ThemeContext = createContext<any>(null);
 
 export function ThemeProvider({ children }) {
     const [theme, setTheme] = useState(() => {
-        // Check localStorage or default to dark
+        // Check localStorage or default to light
         const saved = localStorage.getItem('surgeonsight-theme');
-        return saved || 'dark';
+        return saved || 'light';
     });
 
     useEffect(() => {
