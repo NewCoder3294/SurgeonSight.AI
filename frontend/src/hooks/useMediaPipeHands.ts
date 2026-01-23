@@ -11,9 +11,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 
 // MediaPipe landmark indices
 const WRIST = 0;
-const THUMB_CMC = 1;
-const THUMB_MCP = 2;
-const THUMB_IP = 3;
+
 const THUMB_TIP = 4;
 const INDEX_MCP = 5;
 const INDEX_PIP = 6;
@@ -223,7 +221,7 @@ function calculateSpeed(current: HandLandmark[], prev: HandLandmark[] | null): n
 export function useMediaPipeHands({
     videoElement,
     enabled = true,
-    targetFps = 15,
+    targetFps = 60, // Default to 60fps for high-speed tracking (was 30)
     onHandsDetected
 }: UseMediaPipeHandsOptions) {
     const [hands, setHands] = useState<HandData[]>([]);
@@ -263,7 +261,7 @@ export function useMediaPipeHands({
                     numHands: 2,
                     minHandDetectionConfidence: 0.7,  // Higher = fewer false positives
                     minHandPresenceConfidence: 0.6,
-                    minTrackingConfidence: 0.4        // Lower = smoother tracking
+                    minTrackingConfidence: 0.3        // Lower = maintains tracking better during fast motion
                 });
 
                 handLandmarkerRef.current = handLandmarker;
@@ -354,12 +352,13 @@ export function useMediaPipeHands({
                     prevLandmarksRef.current.set(handedness, [...landmarks]);
 
                     // Apply EMA smoothing to metrics for stability
+                    // Alpha increased to 0.8 (was 0.6) for high-speed response
                     const smoothedMetrics: SurgicalMetrics = {
-                        scalpelAngle: ema(Math.abs(scalpelAngle), prevMetrics?.scalpelAngle ?? null, 0.4),
-                        pinchAngle: ema(pinchAngle, prevMetrics?.pinchAngle ?? null, 0.3),
-                        fingerBend: ema(fingerBend, prevMetrics?.fingerBend ?? null, 0.3),
-                        steadiness: ema(steadiness, prevMetrics?.steadiness ?? null, 0.2),  // More smoothing for steadiness
-                        speed: ema(speed, prevMetrics?.speed ?? null, 0.3),
+                        scalpelAngle: ema(Math.abs(scalpelAngle), prevMetrics?.scalpelAngle ?? null, 0.8),
+                        pinchAngle: ema(pinchAngle, prevMetrics?.pinchAngle ?? null, 0.8),
+                        fingerBend: ema(fingerBend, prevMetrics?.fingerBend ?? null, 0.8),
+                        steadiness: ema(steadiness, prevMetrics?.steadiness ?? null, 0.6),  // Slower decay for steadiness is good
+                        speed: ema(speed, prevMetrics?.speed ?? null, 0.8),
                         gripType: grip.type,
                         gripConfidence: grip.confidence
                     };

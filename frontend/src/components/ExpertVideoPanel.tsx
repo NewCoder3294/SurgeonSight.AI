@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { createOvershootVision, isOvershootConfigured, getApiKeyInfo } from '../services/overshoot';
 import { parseOvershootOutput, conceptSignature } from '../utils/noteProcessing';
+import { useMediaPipeHands } from '../hooks/useMediaPipeHands';
+import { drawHandSkeleton, drawHandLandmarks, drawAngleArc, drawPinchAngle, drawFingerBend } from '../utils/canvasDrawing';
 
 interface ExpertVideoPanelProps {
   isAnalyzing: boolean;
@@ -104,6 +106,7 @@ export default function ExpertVideoPanel({
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const visionInstanceRef = useRef<ReturnType<typeof createOvershootVision> | null>(null);
   // Store notes with timestamps (attached from video.currentTime in code, not from model)
   // Format: { text: string, timestamp: number, type: 'LOG' | 'MOMENT' }
@@ -121,7 +124,7 @@ export default function ExpertVideoPanel({
     observedMaterials?: string[];
     lastUpdateTime: number;
   }>({ lastUpdateTime: 0 });
-  
+
   // Throttling: Queue incoming Overshoot messages and flush to UI on interval
   // MIN_TIME_BETWEEN_NOTES_MS: Minimum time (3-5 seconds) between accepting new notes
   // To tune throttling: Adjust MIN_TIME_BETWEEN_NOTES_MS (higher = more sparse, lower = more frequent)
@@ -132,6 +135,45 @@ export default function ExpertVideoPanel({
   const flushIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastAcceptedTimeRef = useRef<number>(0); // Track when last note was accepted for throttling
   const seenObservationSignaturesRef = useRef<Set<string>>(new Set()); // Track concept signatures for deduplication
+
+  // Hand tracking for uploaded video
+  const { hands: detectedHands, isLoading: isHandTrackingLoading } = useMediaPipeHands({
+    videoElement: videoRef.current,
+    enabled: !!videoUrl, // Enable tracking when video is loaded
+    targetFps: 60 // Higher FPS for smooth video playback
+  });
+
+  // Draw hand overlays
+  useEffect(() => {
+    if (!canvasRef.current || !videoRef.current) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Match canvas size to video
+    canvas.width = videoRef.current.videoWidth || 640;
+    canvas.height = videoRef.current.videoHeight || 480;
+
+    // Clear previous drawings
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    detectedHands.forEach((hand: any) => {
+      const landmarks = hand.landmarks;
+      const metrics = hand.metrics;
+
+      // Draw skeleton
+      drawHandSkeleton(ctx, landmarks, canvas.width, canvas.height, false); // No flip for uploaded video
+      drawHandLandmarks(ctx, landmarks, canvas.width, canvas.height, false);
+
+      // Draw metrics if available
+      if (metrics) {
+        drawAngleArc(ctx, landmarks, metrics.scalpelAngle, canvas.width, canvas.height, false);
+        drawPinchAngle(ctx, landmarks, metrics.pinchAngle, canvas.width, canvas.height, false);
+        drawFingerBend(ctx, landmarks, metrics.fingerBend, canvas.width, canvas.height, false);
+      }
+    });
+  }, [detectedHands]);
 
   // Cleanup video URL on unmount
   useEffect(() => {
@@ -266,13 +308,13 @@ export default function ExpertVideoPanel({
       });
 
       visionInstanceRef.current = vision;
-      
+
       // Initialize flush interval: check queue every FLUSH_INTERVAL_MS
       // Notes are only accepted if MIN_TIME_BETWEEN_NOTES_MS has passed since last acceptance
       flushIntervalRef.current = setInterval(() => {
         flushResults();
       }, FLUSH_INTERVAL_MS);
-      
+
       await vision.start();
 
       // Fallback timeout: complete after 60 seconds max (or video duration + buffer)
@@ -342,12 +384,12 @@ export default function ExpertVideoPanel({
    * Used for concept-level deduplication in flushResults
    */
   const computeConceptSignature = (s: string): string => {
-    const stopwords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 
-      'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'been', 'be', 'being', 'have', 
+    const stopwords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+      'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'been', 'be', 'being', 'have',
       'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must',
       'this', 'that', 'these', 'those', 'it', 'its', 'they', 'them', 'their', 'there', 'here',
       'during', 'while', 'when', 'where', 'which', 'who', 'what', 'how', 'why']);
-    
+
     const normalized = normalizeText(s);
     const tokens = normalized.split(/\s+/).filter(token => token.length > 2 && !stopwords.has(token));
     return tokens.join(' ');
@@ -366,7 +408,7 @@ export default function ExpertVideoPanel({
    */
   const flushResults = () => {
     if (messageQueueRef.current.length === 0) return;
-    
+
     // Throttling: Only accept new notes if enough time has passed
     const now = Date.now();
     const timeSinceLastAccepted = now - lastAcceptedTimeRef.current;
@@ -374,7 +416,7 @@ export default function ExpertVideoPanel({
       // Not enough time has passed, skip this flush
       return;
     }
-    
+
     // Filter: keep only non-empty messages, but preserve original for removal
     const candidatePairs = messageQueueRef.current
       .map((msg, idx) => ({ original: msg, trimmed: msg.trim(), index: idx }))
@@ -384,7 +426,7 @@ export default function ExpertVideoPanel({
       messageQueueRef.current = [];
       return;
     }
-    
+
     // Get existing accepted notes for deduplication checks
     const existingNotes = notesAccumulatorRef.current.map(n => n.text);
     const existingSignatures = new Set(existingNotes.map(computeConceptSignature).filter(sig => sig.length > 0));
@@ -394,18 +436,18 @@ export default function ExpertVideoPanel({
     const validCandidates = candidatePairs.filter(pair => {
       const text = pair.trimmed;
       const sig = computeConceptSignature(text);
-      
+
       // Reject if concept signature already exists (concept-level dedupe)
       if (sig && existingSignatures.has(sig)) {
         return false;
       }
-      
+
       // Reject if starts with same token as last accepted (consecutive start-word constraint)
       const candidateFirstToken = firstToken(text);
       if (lastAcceptedFirstToken && candidateFirstToken === lastAcceptedFirstToken) {
         return false;
       }
-      
+
       return true;
     });
 
@@ -416,15 +458,15 @@ export default function ExpertVideoPanel({
       console.log("[flush] all candidates rejected (duplicates/consecutive), remaining queue cleared");
       return;
     }
-    
+
     // Rank valid candidates deterministically: prefer longer, more specific observations with concrete instruments
     const rankCandidate = (text: string): number => {
       let rank = 0;
       const lower = text.toLowerCase();
-      
+
       // Prefer longer text (more specific)
       rank += text.length;
-      
+
       // Prefer concrete instruments/materials (forceps, scissors, suture, needle driver)
       const concreteTerms = ['forceps', 'scissors', 'suture', 'needle driver', 'needledriver', 'retractor', 'banana'];
       for (const term of concreteTerms) {
@@ -432,14 +474,14 @@ export default function ExpertVideoPanel({
           rank += 100; // Significant boost for concrete terms
         }
       }
-      
+
       return rank;
     };
 
     // Select ONLY ONE best candidate from valid candidates
     let bestPair = validCandidates[0];
     let bestRank = rankCandidate(bestPair.trimmed);
-    
+
     for (const pair of validCandidates) {
       const rank = rankCandidate(pair.trimmed);
       if (rank > bestRank) {
@@ -449,27 +491,27 @@ export default function ExpertVideoPanel({
     }
 
     // Add ONLY the selected candidate to accumulator (use trimmed version)
-      const noteWithTimestamp: { text: string; timestamp: number; type: 'LOG' | 'MOMENT' } = {
+    const noteWithTimestamp: { text: string; timestamp: number; type: 'LOG' | 'MOMENT' } = {
       text: bestPair.trimmed,
       timestamp: 0, // Placeholder - not used for observations, only for legacy moment extraction
       type: 'LOG',
-      };
-      
-      notesAccumulatorRef.current.push(noteWithTimestamp);
-      
+    };
+
+    notesAccumulatorRef.current.push(noteWithTimestamp);
+
     // Remove ONLY the accepted candidate from queue using original index (leave others for future intervals)
     messageQueueRef.current.splice(bestPair.index, 1);
 
     // Debug log
     console.log("[flush] accepted 1 of", candidatePairs.length, "valid:", validCandidates.length, "remaining", messageQueueRef.current.length);
-      
-      // Update throttling timestamp
-      lastAcceptedTimeRef.current = now;
-      
+
+    // Update throttling timestamp
+    lastAcceptedTimeRef.current = now;
+
     // Update parent with current state (extract text for UI - already deduplicated by signature)
-      const noteTexts = notesAccumulatorRef.current.map(n => n.text);
+    const noteTexts = notesAccumulatorRef.current.map(n => n.text);
     onNotesUpdate(noteTexts);
-    
+
     // DO NOT clear the whole queue - leave remaining messages for future intervals
   };
 
@@ -507,7 +549,7 @@ export default function ExpertVideoPanel({
 
     // Process accumulated notes (generate Overview at completion only)
     const { extractSummary, extractKeyConcepts, extractNotableMoments, deduplicateNotes, thinObservationsDeterministic } = await import('../utils/noteProcessing');
-    
+
     // Extract text for deduplication
     const noteTexts = notesAccumulatorRef.current.map(n => n.text);
     const dedupedNoteTexts = deduplicateNotes(noteTexts);
@@ -516,13 +558,13 @@ export default function ExpertVideoPanel({
     const videoDurationMs = videoRef.current?.duration
       ? Math.floor((videoRef.current.duration || 60) * 1000)
       : 60000;
-    
+
     // Convert to Observation objects for thinning
     const accumulatedObservations = dedupedNoteTexts.map(text => ({
       text,
       category: 'general' as const,
     }));
-    
+
     // Apply deterministic thinning to final accumulated list
     const thinnedFinal = thinObservationsDeterministic(accumulatedObservations, videoDurationMs);
     const finalNoteTexts = thinnedFinal.map(obs => obs.text);
@@ -564,13 +606,13 @@ export default function ExpertVideoPanel({
     const existingKeyConcepts = structuredDataRef.current.keyConcepts && structuredDataRef.current.keyConcepts.length > 0
       ? structuredDataRef.current.keyConcepts
       : extractKeyConcepts(finalNoteTexts);
-    
+
     // Add 1-2 bank concepts to supplement existing concepts
     // Use video filename as seed for deterministic selection
     const videoIdSeed = (videoFile?.name) || 'default';
     const isShortVideo = videoDurationMs <= 20000 || finalNoteTexts.length <= 4;
     const bankConceptCount = isShortVideo ? 1 : 2;
-    
+
     const { pickBankConcepts } = await import('../utils/noteProcessing');
     const bankConcepts = pickBankConcepts({
       existingConcepts: existingKeyConcepts,
@@ -579,7 +621,7 @@ export default function ExpertVideoPanel({
       videoIdSeed,
       count: bankConceptCount
     });
-    
+
     // Combine existing + bank concepts, cap at 8 total
     const finalKeyConcepts = [...existingKeyConcepts, ...bankConcepts].slice(0, 8);
 
@@ -690,73 +732,89 @@ export default function ExpertVideoPanel({
       <div className="h-full flex flex-col bg-bg-tertiary/30 border border-border-subtle">
         <div className="px-4 py-3 border-b border-border-subtle">
           <h3 className="text-sm tracking-widest text-text-muted uppercase m-0">Video Upload & Analysis</h3>
-          </div>
-
-          {videoFile && videoUrl ? (
-            <div className="flex-1 flex flex-col min-h-[400px]">
-              {/* Video Preview */}
-              <div className="relative flex-1 bg-black">
-                <video
-                  ref={videoRef}
-                  src={videoUrl}
-                  controls
-                  className="w-full h-full object-contain"
-                />
-                {isAnalyzing && (
-                  <div className="absolute top-2 left-2 bg-bg-primary/90 px-2 py-1 rounded border border-accent-rust">
-                    <span className="font-mono text-xs text-accent-rust uppercase">Analyzing...</span>
-                  </div>
-                )}
-                {analysisComplete && (
-                  <div className="absolute top-2 left-2 bg-bg-primary/90 px-2 py-1 rounded border border-success">
-                    <span className="font-mono text-xs text-success uppercase">Analysis Complete</span>
-                  </div>
-                )}
-              </div>
-
-              {/* File info and controls */}
-            <div className="p-4 border-t border-border-subtle flex items-center justify-between">
-                <div className="flex-1 min-w-0">
-                  <p className="text-text-cream text-sm truncate" title={videoFile.name}>{videoFile.name}</p>
-                  <p className="text-text-dim text-xs">{(videoFile.size / 1024 / 1024).toFixed(2)} MB</p>
-                </div>
-                <button
-                  className="ml-4 px-3 py-1 text-xs font-mono text-text-muted hover:text-error underline transition-colors"
-                  onClick={handleReset}
-                >
-                  Remove
-                </button>
-              </div>
-
-            </div>
-          ) : (
-            <div
-            className="h-full min-h-[400px] flex items-center justify-center cursor-pointer transition-all duration-300 bg-bg-tertiary/30 hover:bg-accent-rust/5"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileUpload}
-                accept="video/*"
-                hidden
-              />
-              <div className="text-center">
-                <span className="text-5xl block mb-4 text-accent-rust">↑</span>
-                <p className="text-text-cream mb-1">Upload Surgical Procedure Video</p>
-                <span className="text-xs text-text-dim">MP4, MOV supported</span>
-              </div>
-            </div>
-          )}
-
-          {/* Error display */}
-          {error && (
-            <div className="p-4 bg-error/10 border border-error/30 text-error text-sm">
-              <p className="font-mono text-xs uppercase mb-1">Error</p>
-              <p>{error}</p>
-            </div>
-          )}
         </div>
+
+        {videoFile && videoUrl ? (
+          <div className="flex-1 flex flex-col min-h-[400px]">
+            {/* Video Preview */}
+            <div className="relative flex-1 bg-black">
+              <video
+                ref={videoRef}
+                src={videoUrl}
+                controls
+                className="w-full h-full object-contain"
+                crossOrigin="anonymous"
+              />
+
+              {/* Hand Tracking Canvas Overlay */}
+              <canvas
+                ref={canvasRef}
+                className="absolute top-0 left-0 w-full h-full pointer-events-none"
+                style={{ objectFit: 'contain' }}
+              />
+
+              {isAnalyzing && (
+                <div className="absolute top-2 left-2 bg-bg-primary/90 px-2 py-1 rounded border border-accent-rust">
+                  <span className="font-mono text-xs text-accent-rust uppercase">Analyzing...</span>
+                </div>
+              )}
+              {analysisComplete && (
+                <div className="absolute top-2 left-2 bg-bg-primary/90 px-2 py-1 rounded border border-success">
+                  <span className="font-mono text-xs text-success uppercase">Analysis Complete</span>
+                </div>
+              )}
+
+              {/* Hand Tracking Loading Indicator */}
+              {isHandTrackingLoading && videoUrl && (
+                <div className="absolute bottom-2 right-2 bg-black/50 px-2 py-1 rounded">
+                  <span className="font-mono text-xs text-text-dim">Loading Hand Model...</span>
+                </div>
+              )}
+            </div>
+
+            {/* File info and controls */}
+            <div className="p-4 border-t border-border-subtle flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <p className="text-text-cream text-sm truncate" title={videoFile.name}>{videoFile.name}</p>
+                <p className="text-text-dim text-xs">{(videoFile.size / 1024 / 1024).toFixed(2)} MB</p>
+              </div>
+              <button
+                className="ml-4 px-3 py-1 text-xs font-mono text-text-muted hover:text-error underline transition-colors"
+                onClick={handleReset}
+              >
+                Remove
+              </button>
+            </div>
+
+          </div>
+        ) : (
+          <div
+            className="h-full min-h-[400px] flex items-center justify-center cursor-pointer transition-all duration-300 bg-bg-tertiary/30 hover:bg-accent-rust/5"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              accept="video/*"
+              hidden
+            />
+            <div className="text-center">
+              <span className="text-5xl block mb-4 text-accent-rust">↑</span>
+              <p className="text-text-cream mb-1">Upload Surgical Procedure Video</p>
+              <span className="text-xs text-text-dim">MP4, MOV supported</span>
+            </div>
+          </div>
+        )}
+
+        {/* Error display */}
+        {error && (
+          <div className="p-4 bg-error/10 border border-error/30 text-error text-sm">
+            <p className="font-mono text-xs uppercase mb-1">Error</p>
+            <p>{error}</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

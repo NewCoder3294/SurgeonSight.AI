@@ -70,9 +70,15 @@ export default function Hand3DVisualization({
 
         // Draw all detected hands
         if (handsToRender.length > 0) {
-            handsToRender.forEach((hand, index) => {
-                // Offset each hand slightly to avoid overlap if needed
-                const offsetX = handsToRender.length > 1 ? (index === 0 ? -0.15 : 0.15) : 0;
+            handsToRender.forEach((hand) => {
+                // Offset hands based on handedness to ensure consistent separation
+                // Left hand -> Shift Left (Negative offset)
+                // Right hand -> Shift Right (Positive offset)
+                // We use a larger offset (0.25) to ensure they don't overlap even if close
+                const offsetX = handsToRender.length > 1
+                    ? (hand.handedness === 'Left' ? -0.25 : 0.25)
+                    : 0;
+
                 draw3DHand(
                     ctx,
                     rect.width,

@@ -49,7 +49,7 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
     const [isAnalyzing, setIsAnalyzing] = useState(true);
     const [currentFeedback, setCurrentFeedback] = useState<any>(null);
     const [feedbackHistory, setFeedbackHistory] = useState<any[]>([]);
-    const [detectionBox, setDetectionBox] = useState<any>(null);
+
     const [backendConnected, setBackendConnected] = useState(false);
     const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
     const [currentMetrics, setCurrentMetrics] = useState<SurgicalMetrics | null>(null);
@@ -156,7 +156,7 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
     const { isLoading: mediaPipeLoading } = useMediaPipeHands({
         videoElement,
         enabled: true,
-        targetFps: 15,
+        targetFps: 60,
         onHandsDetected: (hands) => {
             setDetectedHands(hands);
             if (hands.length > 0) {
@@ -209,8 +209,8 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
         }
     });
 
-    // Mock hand detection (fallback when MediaPipe not available)
-    const { currentGrip: mockGrip } = useMockHandDetection({
+    // Mock hand detection (needed for fallback demo feedback)
+    useMockHandDetection({
         onGripChange: (grip: any) => {
             if (!backendConnected && detectedHands.length === 0) {
                 triggerDemoFeedback();
@@ -292,16 +292,6 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
         setFeedbackIndex(prev => prev + 1);
         setIsAnalyzing(false);
         setTimeout(() => setIsAnalyzing(true), 500);
-
-        // Show detection box briefly
-        setDetectionBox({
-            x: 30 + Math.random() * 20,
-            y: 30 + Math.random() * 20,
-            width: 30 + Math.random() * 10,
-            height: 40 + Math.random() * 10,
-        });
-
-        setTimeout(() => setDetectionBox(null), 2000);
 
         // Speak feedback using Web Speech API
         speakWithWebSpeech(feedback.message);
@@ -546,7 +536,6 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                         <CornerBrackets size="xl" animated>
                             <VideoFeed
                                 ref={videoFeedRef}
-                                detectionBox={detectionBox}
                                 hands={detectedHands}
                                 showMetrics={true}
                                 metrics={currentMetrics}

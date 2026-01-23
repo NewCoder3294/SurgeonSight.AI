@@ -1,4 +1,5 @@
 import { useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
+import { drawHandSkeleton, drawHandLandmarks, drawAngleArc, drawPinchAngle, drawFingerBend } from '../utils/canvasDrawing';
 
 interface SurgicalMetrics {
     scalpelAngle: number;
@@ -11,7 +12,6 @@ interface SurgicalMetrics {
 }
 
 interface VideoFeedProps {
-    detectionBox?: any;
     hands?: any[];
     gripState?: any;
     showLandmarks?: boolean;
@@ -27,7 +27,6 @@ interface VideoFeedProps {
  * Displays webcam feed with optional hand landmark visualization
  */
 const VideoFeed = forwardRef(function VideoFeed({
-    detectionBox,
     hands = [],
     gripState = null,
     showLandmarks = true,
@@ -77,15 +76,15 @@ const VideoFeed = forwardRef(function VideoFeed({
             const handMetrics = hand.metrics || metrics;
 
             if (showSkeleton && landmarks.length > 0) {
-                drawHandSkeleton(ctx, landmarks, canvas.width, canvas.height);
+                drawHandSkeleton(ctx, landmarks, canvas.width, canvas.height, true);
             }
             if (showLandmarks && landmarks.length > 0) {
-                drawHandLandmarks(ctx, landmarks, canvas.width, canvas.height);
+                drawHandLandmarks(ctx, landmarks, canvas.width, canvas.height, true);
             }
             if (showMetrics && handMetrics && landmarks.length > 0) {
-                drawAngleArc(ctx, landmarks, handMetrics.scalpelAngle, canvas.width, canvas.height);
-                drawPinchAngle(ctx, landmarks, handMetrics.pinchAngle, canvas.width, canvas.height);
-                drawFingerBend(ctx, landmarks, handMetrics.fingerBend, canvas.width, canvas.height);
+                drawAngleArc(ctx, landmarks, handMetrics.scalpelAngle, canvas.width, canvas.height, true);
+                drawPinchAngle(ctx, landmarks, handMetrics.pinchAngle, canvas.width, canvas.height, true);
+                drawFingerBend(ctx, landmarks, handMetrics.fingerBend, canvas.width, canvas.height, true);
             }
         });
     }, [hands, showLandmarks, showSkeleton, showMetrics, metrics]);
@@ -152,11 +151,11 @@ const VideoFeed = forwardRef(function VideoFeed({
 
                 {/* Grip state indicator */}
                 {gripState && (
-                    <div className="absolute top-5 right-5 p-2 bg-[rgba(10,15,26,0.9)] border-2 backdrop-blur-sm flex flex-col gap-0.5 [data-theme='light']:bg-[rgba(248,250,252,0.95)]" style={{ borderColor: getGripColor(gripState.state) }}>
-                        <span className="font-display text-base tracking-wider" style={{ color: getGripColor(gripState.state) }}>
+                    <div className="absolute top-5 right-5 p-3 bg-[rgba(10,15,26,0.95)] border-4 backdrop-blur-md flex flex-col gap-1 [data-theme='light']:bg-[rgba(248,250,252,0.95)]" style={{ borderColor: getGripColor(gripState.state) }}>
+                        <span className="font-display text-2xl tracking-widest font-bold shadow-black drop-shadow-md" style={{ color: getGripColor(gripState.state) }}>
                             {gripState.state.toUpperCase().replace('_', ' ')}
                         </span>
-                        <span className="font-mono text-[0.5rem] tracking-wider text-text-dim">
+                        <span className="font-mono text-xs tracking-wider text-text-muted font-bold">
                             CONF: {(gripState.confidence * 100).toFixed(0)}%
                         </span>
                     </div>
@@ -165,17 +164,17 @@ const VideoFeed = forwardRef(function VideoFeed({
 
             {/* Expert Target Indicator */}
             {expertAngleTarget !== undefined && metrics && (
-                <div className="absolute top-5 left-5 p-2 bg-[rgba(10,15,26,0.9)] border border-border-subtle backdrop-blur-sm [data-theme='light']:bg-[rgba(248,250,252,0.95)]">
-                    <div className="flex flex-col gap-1">
-                        <span className="font-mono text-[0.55rem] tracking-wider text-text-dim uppercase">Expert Target</span>
-                        <div className="flex items-center gap-2">
-                            <span className="font-mono text-lg text-accent-rust">{expertAngleTarget}°</span>
-                            <span className="font-mono text-xs text-text-dim">vs</span>
-                            <span className={`font-mono text-lg ${Math.abs(metrics.scalpelAngle - expertAngleTarget) <= 15 ? 'text-success' : 'text-warning'}`}>
+                <div className="absolute top-5 left-5 p-3 bg-[rgba(10,15,26,0.95)] border-2 border-border-default backdrop-blur-md shadow-lg [data-theme='light']:bg-[rgba(248,250,252,0.95)]">
+                    <div className="flex flex-col gap-2">
+                        <span className="font-mono text-xs tracking-widest text-text-muted uppercase font-bold">Expert Target</span>
+                        <div className="flex items-center gap-3">
+                            <span className="font-mono text-3xl text-accent-rust font-bold">{expertAngleTarget}°</span>
+                            <span className="font-mono text-sm text-text-muted">vs</span>
+                            <span className={`font-mono text-3xl font-bold ${Math.abs(metrics.scalpelAngle - expertAngleTarget) <= 15 ? 'text-success' : 'text-warning'}`}>
                                 {Math.round(metrics.scalpelAngle)}°
                             </span>
                         </div>
-                        <div className={`font-mono text-[0.5rem] tracking-wider uppercase ${Math.abs(metrics.scalpelAngle - expertAngleTarget) <= 15 ? 'text-success' : 'text-warning'}`}>
+                        <div className={`font-mono text-xs tracking-wider uppercase font-bold ${Math.abs(metrics.scalpelAngle - expertAngleTarget) <= 15 ? 'text-success' : 'text-warning'}`}>
                             {Math.abs(metrics.scalpelAngle - expertAngleTarget) <= 15 ? '✓ ON TARGET' : `↻ ADJUST ${Math.round(Math.abs(metrics.scalpelAngle - expertAngleTarget))}°`}
                         </div>
                     </div>
@@ -184,13 +183,13 @@ const VideoFeed = forwardRef(function VideoFeed({
 
             {/* Detected Tool Indicator */}
             {detectedTool && detectedTool.type !== 'none' && detectedTool.confidence > 0.4 && (
-                <div className="absolute top-5 right-20 p-2 bg-[rgba(10,15,26,0.9)] border border-accent-rust backdrop-blur-sm [data-theme='light']:bg-[rgba(248,250,252,0.95)]">
-                    <div className="flex flex-col gap-0.5">
-                        <span className="font-mono text-[0.55rem] tracking-wider text-text-dim uppercase">Tool Detected</span>
-                        <span className="font-display text-base tracking-wider text-accent-rust uppercase">
+                <div className="absolute top-5 right-48 p-3 bg-[rgba(10,15,26,0.95)] border-2 border-accent-rust backdrop-blur-md shadow-lg [data-theme='light']:bg-[rgba(248,250,252,0.95)]">
+                    <div className="flex flex-col gap-1">
+                        <span className="font-mono text-xs tracking-widest text-text-muted uppercase font-bold">Tool Detected</span>
+                        <span className="font-display text-xl tracking-wider text-accent-rust uppercase font-bold">
                             {detectedTool.type.replace('_', ' ')}
                         </span>
-                        <span className="font-mono text-[0.5rem] tracking-wider text-text-dim">
+                        <span className="font-mono text-xs tracking-wider text-text-muted">
                             CONF: {(detectedTool.confidence * 100).toFixed(0)}%
                         </span>
                     </div>
@@ -219,218 +218,5 @@ const VideoFeed = forwardRef(function VideoFeed({
         </div>
     );
 });
-
-// Hand skeleton connections (MediaPipe format)
-const HAND_CONNECTIONS = [
-    [0, 1], [1, 2], [2, 3], [3, 4],     // Thumb
-    [0, 5], [5, 6], [6, 7], [7, 8],     // Index
-    [0, 9], [9, 10], [10, 11], [11, 12], // Middle
-    [0, 13], [13, 14], [14, 15], [15, 16], // Ring
-    [0, 17], [17, 18], [18, 19], [19, 20], // Pinky
-    [5, 9], [9, 13], [13, 17]           // Palm
-];
-
-// Draw hand skeleton lines
-function drawHandSkeleton(ctx: any, landmarks: any, width: any, height: any) {
-    ctx.strokeStyle = 'rgba(0, 180, 216, 0.6)';
-    ctx.lineWidth = 2;
-
-    HAND_CONNECTIONS.forEach(([start, end]) => {
-        const p1 = landmarks[start];
-        const p2 = landmarks[end];
-
-        ctx.beginPath();
-        // FLIP X
-        ctx.moveTo((1 - p1.x) * width, p1.y * height);
-        ctx.lineTo((1 - p2.x) * width, p2.y * height);
-        ctx.stroke();
-    });
-}
-
-// Draw angle arc and value near the wrist
-function drawAngleArc(ctx: any, landmarks: any, angle: number, width: number, height: number) {
-    if (!landmarks || landmarks.length < 9) return;
-
-    const wrist = landmarks[0];  // Wrist
-    const indexTip = landmarks[8]; // Index fingertip
-
-    const wristX = (1 - wrist.x) * width;
-    const wristY = wrist.y * height;
-    const indexX = (1 - indexTip.x) * width;
-    const indexY = indexTip.y * height;
-
-    // Draw angle arc
-    const arcRadius = 40;
-    const endAngle = Math.atan2(indexY - wristY, indexX - wristX);
-
-    ctx.beginPath();
-    ctx.strokeStyle = 'rgba(196, 92, 62, 0.8)'; // accent-rust
-    ctx.lineWidth = 3;
-    ctx.arc(wristX, wristY, arcRadius, 0, endAngle, endAngle < 0);
-    ctx.stroke();
-
-    // Draw horizontal reference line
-    ctx.beginPath();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([5, 5]);
-    ctx.moveTo(wristX, wristY);
-    ctx.lineTo(wristX + 60, wristY);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    // Draw angle line (wrist to index)
-    ctx.beginPath();
-    ctx.strokeStyle = 'rgba(196, 92, 62, 1)';
-    ctx.lineWidth = 2;
-    ctx.moveTo(wristX, wristY);
-    ctx.lineTo(indexX, indexY);
-    ctx.stroke();
-
-    // Draw angle value label
-    const labelX = wristX + 50;
-    const labelY = wristY - 20;
-
-    ctx.fillStyle = 'rgba(10, 15, 26, 0.8)';
-    ctx.fillRect(labelX - 5, labelY - 14, 50, 20);
-
-    ctx.font = 'bold 14px monospace';
-    ctx.fillStyle = 'rgba(196, 92, 62, 1)';
-    ctx.fillText(`${Math.abs(angle).toFixed(1)}°`, labelX, labelY);
-}
-
-// Draw hand landmark points
-function drawHandLandmarks(ctx: any, landmarks: any, width: any, height: any) {
-    landmarks.forEach((point: any, index: any) => {
-        const x = (1 - point.x) * width;
-        const y = point.y * height;
-
-        // Different colors for different parts
-        if (index === 0) {
-            // Wrist - larger
-            ctx.fillStyle = 'rgba(0, 180, 216, 1)';
-            ctx.beginPath();
-            ctx.arc(x, y, 6, 0, 2 * Math.PI);
-            ctx.fill();
-        } else if ([4, 8, 12, 16, 20].includes(index)) {
-            // Fingertips - emphasized
-            ctx.fillStyle = 'rgba(34, 197, 94, 1)';
-            ctx.beginPath();
-            ctx.arc(x, y, 5, 0, 2 * Math.PI);
-            ctx.fill();
-        } else {
-            // Other joints
-            ctx.fillStyle = 'rgba(0, 180, 216, 0.8)';
-            ctx.beginPath();
-            ctx.arc(x, y, 3, 0, 2 * Math.PI);
-            ctx.fill();
-        }
-    });
-}
-
-// Draw pinch angle arc between thumb and index finger
-function drawPinchAngle(ctx: any, landmarks: any, angle: number, width: number, height: number) {
-    if (!landmarks || landmarks.length < 9) return;
-
-    const thumbTip = landmarks[4];  // Thumb tip
-    const indexMcp = landmarks[5];  // Index MCP (base)
-    const indexTip = landmarks[8];  // Index tip
-
-    const thumbX = (1 - thumbTip.x) * width;
-    const thumbY = thumbTip.y * height;
-    const mcpX = (1 - indexMcp.x) * width;
-    const mcpY = indexMcp.y * height;
-    const indexX = (1 - indexTip.x) * width;
-    const indexY = indexTip.y * height;
-
-    // Draw arc at index MCP showing pinch angle
-    const arcRadius = 30;
-    const thumbAngle = Math.atan2(thumbY - mcpY, thumbX - mcpX);
-    const indexAngle = Math.atan2(indexY - mcpY, indexX - mcpX);
-
-    ctx.beginPath();
-    ctx.strokeStyle = 'rgba(34, 197, 94, 0.8)'; // Green for pinch
-    ctx.lineWidth = 3;
-    ctx.arc(mcpX, mcpY, arcRadius, Math.min(thumbAngle, indexAngle), Math.max(thumbAngle, indexAngle));
-    ctx.stroke();
-
-    // Draw lines to thumb and index
-    ctx.beginPath();
-    ctx.strokeStyle = 'rgba(34, 197, 94, 0.5)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([3, 3]);
-    ctx.moveTo(mcpX, mcpY);
-    ctx.lineTo(thumbX, thumbY);
-    ctx.moveTo(mcpX, mcpY);
-    ctx.lineTo(indexX, indexY);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    // Draw angle value label
-    const labelX = mcpX - 60;
-    const labelY = mcpY - 10;
-
-    ctx.fillStyle = 'rgba(10, 15, 26, 0.85)';
-    ctx.fillRect(labelX - 5, labelY - 14, 70, 20);
-
-    ctx.font = 'bold 12px monospace';
-    ctx.fillStyle = 'rgba(34, 197, 94, 1)';
-    ctx.fillText(`Pinch ${angle.toFixed(0)}°`, labelX, labelY);
-}
-
-// Draw finger bend indicator on index finger
-function drawFingerBend(ctx: any, landmarks: any, bendPercent: number, width: number, height: number) {
-    if (!landmarks || landmarks.length < 9) return;
-
-    const indexPip = landmarks[6];  // Index PIP (middle joint)
-    const indexDip = landmarks[7];  // Index DIP
-
-    const pipX = (1 - indexPip.x) * width;
-    const pipY = indexPip.y * height;
-    const dipX = (1 - indexDip.x) * width;
-    const dipY = indexDip.y * height;
-
-    // Position indicator between PIP and DIP
-    const midX = (pipX + dipX) / 2;
-    const midY = (pipY + dipY) / 2;
-
-    // Draw bend percentage bar
-    const barWidth = 40;
-    const barHeight = 8;
-    const barX = midX - barWidth / 2;
-    const barY = midY - 25;
-
-    // Background
-    ctx.fillStyle = 'rgba(10, 15, 26, 0.85)';
-    ctx.fillRect(barX - 5, barY - 18, barWidth + 50, 30);
-
-    // Bar background
-    ctx.fillStyle = 'rgba(100, 100, 100, 0.5)';
-    ctx.fillRect(barX, barY, barWidth, barHeight);
-
-    // Filled portion based on bend
-    const fillColor = bendPercent > 60 ? 'rgba(239, 68, 68, 0.9)' :
-        bendPercent > 30 ? 'rgba(251, 191, 36, 0.9)' :
-            'rgba(34, 197, 94, 0.9)';
-    ctx.fillStyle = fillColor;
-    ctx.fillRect(barX, barY, (barWidth * bendPercent) / 100, barHeight);
-
-    // Border
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(barX, barY, barWidth, barHeight);
-
-    // Label
-    ctx.font = 'bold 10px monospace';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    ctx.fillText(`Bend ${bendPercent.toFixed(0)}%`, barX + barWidth + 5, barY + 7);
-
-    // Connection line to finger
-    ctx.beginPath();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-    ctx.moveTo(midX, barY + barHeight);
-    ctx.lineTo(midX, midY);
-    ctx.stroke();
-}
 
 export default VideoFeed;
