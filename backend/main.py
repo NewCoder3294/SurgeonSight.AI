@@ -1,4 +1,5 @@
 import sys
+import os
 from pathlib import Path
 
 # Add parent directory to path so we can import from sibling 'models' folder
@@ -6,6 +7,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from baseline import router as baseline_router
 from session import router as session_router
@@ -13,11 +17,37 @@ from summary import router as summary_router
 from models.api import router as models_router
 from store import BASELINE, SESSIONS
 
-app = FastAPI(title="SurgeonSight API", version="1.0.0")
+# Environment configuration
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "").split(",") if os.getenv("ALLOWED_ORIGINS") else []
+
+# Default origins for development
+DEFAULT_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+# Combine with production origins from environment
+cors_origins = DEFAULT_ORIGINS + [origin.strip() for origin in ALLOWED_ORIGINS if origin.strip()]
+
+# In production, you might want to be more restrictive
+if ENVIRONMENT == "production" and ALLOWED_ORIGINS:
+    cors_origins = [origin.strip() for origin in ALLOWED_ORIGINS if origin.strip()]
+
+app = FastAPI(
+    title="SurgeonSight API",
+    version="1.0.0",
+    docs_url="/docs" if ENVIRONMENT != "production" else None,  # Disable docs in production
+    redoc_url="/redoc" if ENVIRONMENT != "production" else None,
+)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -31,15 +61,15 @@ app.include_router(models_router)
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "baselines": len(BASELINE), "sessions": len(SESSIONS)}
+    return {
+        "status": "healthy",
+        "environment": ENVIRONMENT,
+        "baselines": len(BASELINE),
+        "sessions": len(SESSIONS)
+    }
 
 
-# LiveKit token endpoint
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
+# LiveKit configuration
 LIVEKIT_API_KEY = os.getenv("LIVEKIT_API_KEY", "")
 LIVEKIT_API_SECRET = os.getenv("LIVEKIT_API_SECRET", "")
 LIVEKIT_URL = os.getenv("LIVEKIT_URL", "")
