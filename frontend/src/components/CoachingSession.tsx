@@ -36,9 +36,10 @@ const DEMO_FEEDBACK = [
 interface CoachingSessionProps {
     embedded?: boolean;
     expertMetrics?: ExpertMetrics; // Expert baseline for comparison
+    isSessionActive?: boolean; // Control when the session (and voice) actually starts
 }
 
-export default function CoachingSession({ embedded = false, expertMetrics }: CoachingSessionProps) {
+export default function CoachingSession({ embedded = false, expertMetrics, isSessionActive = true }: CoachingSessionProps) {
     const videoFeedRef = useRef(null);
 
     // Session state
@@ -79,10 +80,11 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
     // SINGLE voice coach for ALL hands - prevents overlapping speech
     // Uses turn-taking logic to alternate between left/right hands
     const voiceCoach = useVoiceCoach({
-        useElevenLabs: true,
+        useElevenLabs: false, // User requested backup voice only
         elevenLabsVoice: 'rachel',  // Professional female voice
-        elevenLabsStability: 0.35,  // Lower = faster/more dynamic
+        elevenLabsStability: 0.5,  // increased stability for less robotic/jittery voice
         elevenLabsSimilarity: 0.8,
+        initialEnabled: false, // Wait for session start
     });
 
     // Track which hand was last critiqued to implement turn-taking
@@ -92,11 +94,52 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
 
     // Legacy/Global coach for AI observations (keep separate to avoid conflict)
     const globalVoiceCoach = useVoiceCoach({
-        useElevenLabs: true,
+        useElevenLabs: false, // User requested backup voice only
         elevenLabsVoice: 'adam',  // Deep, clear male voice for AI observations
-        elevenLabsStability: 0.4,  // Lower = faster/more dynamic
+        elevenLabsStability: 0.5,  // increased stability for less robotic/jittery voice
         elevenLabsSimilarity: 0.85,
+        initialEnabled: false, // Wait for session start
     });
+
+    const handleToggleVoice = useCallback(() => {
+        const newState = !voiceCoach.voiceEnabled;
+        voiceCoach.setVoiceEnabled(newState);
+        globalVoiceCoach.setVoiceEnabled(newState);
+
+        if (newState) {
+            voiceCoach.speak('Voice coaching resumed.', 'encouragement', 'normal');
+        } else {
+            // Cancel current speech immediately
+            voiceCoach.cancel();
+            globalVoiceCoach.cancel();
+        }
+    }, [voiceCoach, globalVoiceCoach]);
+
+    // Track enable state in ref for callbacks
+    const voiceEnabledRef = useRef(false);
+    useEffect(() => {
+        voiceEnabledRef.current = voiceCoach.voiceEnabled;
+    }, [voiceCoach.voiceEnabled]);
+
+    // Enable voice ONLY when backend is strictly connected and session is live AND session is active
+    useEffect(() => {
+        if (backendConnected && sessionId && videoElement && isSessionActive) {
+            // Small delay to ensure UI transition is complete
+            const timer = setTimeout(() => {
+                if (!voiceEnabledRef.current) { // Only enable if not manually toggled yet
+                    voiceCoach.setVoiceEnabled(true);
+                    globalVoiceCoach.setVoiceEnabled(true);
+                    voiceCoach.speak('System ready. Surgical Coach active.', 'encouragement', 'high');
+                }
+            }, 1000);
+            return () => clearTimeout(timer);
+        } else if (!isSessionActive) {
+            // Make sure voice is disabled if session is not active
+            voiceCoach.setVoiceEnabled(false);
+            globalVoiceCoach.setVoiceEnabled(false);
+            voiceEnabledRef.current = false;
+        }
+    }, [backendConnected, sessionId, videoElement, isSessionActive]);
 
     // Handle Overshoot AI observation - use ref to avoid dependency on voiceCoach
     const globalVoiceCoachRef = useRef(globalVoiceCoach);
@@ -158,8 +201,10 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
         setIsAnalyzing(false);
         setTimeout(() => setIsAnalyzing(true), 500);
 
-        // Play voice feedback
-        playFeedback(data);
+        // Play voice feedback - ONLY if enabled
+        if (voiceEnabledRef.current) {
+            playFeedback(data);
+        }
 
         // Clear feedback after delay
         if (feedbackTimeoutRef.current) {
@@ -270,40 +315,19 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
         }
     });
 
-    // Get video element and stream reference when component mounts
-    // Use an interval to poll for the video element since refs don't trigger effects
-    useEffect(() => {
-        let attempts = 0;
-        const maxAttempts = 20; // Try for ~2 seconds
-
-        const checkVideoElement = () => {
-            if (videoFeedRef.current) {
-                const videoEl = (videoFeedRef.current as any)?.getVideoElement?.();
-                if (videoEl) {
-                    setVideoElement(videoEl);
-                    // Get the MediaStream for Overshoot recording
-                    if (videoEl.srcObject instanceof MediaStream) {
-                        setMediaStream(videoEl.srcObject);
-                    }
-                    return true;
-                }
+    // Handle stream ready from VideoFeed
+    const handleStreamReady = useCallback((stream: MediaStream) => {
+        setMediaStream(stream);
+        if (videoFeedRef.current) {
+            const videoEl = (videoFeedRef.current as any)?.getVideoElement?.();
+            if (videoEl) {
+                setVideoElement(videoEl);
             }
-            return false;
-        };
+        }
+    }, []);
 
-        // Check immediately
-        if (checkVideoElement()) return;
-
-        // Poll for video element
-        const intervalId = setInterval(() => {
-            attempts++;
-            if (checkVideoElement() || attempts >= maxAttempts) {
-                clearInterval(intervalId);
-            }
-        }, 100);
-
-        return () => clearInterval(intervalId);
-    }, []); // Run once on mount
+    // Video element and stream are now handled via onStreamReady callback
+    // Polling logic removed to prevent race conditions
 
     // Initialize session
     useEffect(() => {
@@ -364,8 +388,10 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
         setIsAnalyzing(false);
         setTimeout(() => setIsAnalyzing(true), 500);
 
-        // Speak feedback using Web Speech API
-        speakWithWebSpeech(feedback.message);
+        // Speak feedback using Web Speech API - ONLY if voice is enabled
+        if (voiceCoach.voiceEnabled) {
+            speakWithWebSpeech(feedback.message);
+        }
 
         // Clear feedback after delay
         if (feedbackTimeoutRef.current) {
@@ -469,8 +495,10 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                     setCurrentFeedback(uiFeedback);
                     setFeedbackHistory(prev => [...prev.slice(-4), uiFeedback]); // Keep last 5 for minimal trail
 
-                    // Speak feedback
-                    speakWithWebSpeech(feedback.text);
+                    // Speak feedback - ONLY if enabled
+                    if (voiceEnabledRef.current) {
+                        speakWithWebSpeech(feedback.text);
+                    }
                 }
             }
 
@@ -663,6 +691,7 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                             hands={detectedHands}
                             showMetrics={true}
                             metrics={currentMetrics}
+                            onStreamReady={handleStreamReady}
                         />
                         {mediaPipeLoading && (
                             <div className="absolute inset-0 flex items-center justify-center bg-black/50">
@@ -772,19 +801,8 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                     </div>
                 </div>
 
-                {/* Bottom row: Overshoot AI | 3D Hand View | Voice Coach - Three columns */}
-                <div className="grid grid-cols-3 gap-4 max-[1200px]:grid-cols-2 max-[800px]:grid-cols-1">
-                    {/* Overshoot AI Insights Panel - PROMINENTLY FEATURED */}
-                    <OvershootInsightsPanel
-                        isConfigured={overshootLive.isConfigured}
-                        isAnalyzing={overshootLive.isAnalyzing}
-                        creditsExhausted={overshootLive.creditsExhausted}
-                        lastObservation={overshootLive.lastObservation}
-                        observationCount={overshootLive.observationCount}
-                        error={overshootLive.error}
-                        demoMode={false} // Use real API only
-                    />
-
+                {/* Bottom row: 3D Hand View | Voice Coach - Two columns */}
+                <div className="grid grid-cols-2 gap-4 max-[800px]:grid-cols-1">
                     {/* 3D Hand Visualization */}
                     <div className="bg-bg-secondary border border-border-subtle overflow-hidden">
                         <h3 className="text-xs tracking-widest px-4 pt-3 pb-2 border-b border-border-subtle text-text-muted uppercase">3D Hand View</h3>
@@ -809,6 +827,7 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                         voiceEnabled={voiceCoach.voiceEnabled}
                         voiceProvider={voiceCoach.voiceProvider}
                         isSpeaking={globalVoiceCoach.isSpeaking || voiceCoach.isSpeaking}
+                        onToggleVoice={handleToggleVoice}
                     />
                 </div>
             </main>

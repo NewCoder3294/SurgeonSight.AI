@@ -47,7 +47,7 @@ export interface SpeakOptions extends ElevenLabsConfig {
 const DEFAULT_CONFIG: ElevenLabsConfig = {
   voiceId: 'rachel',  // Professional female voice - good for coaching
   modelId: 'eleven_flash_v2_5',  // Flash model for faster, snappier speech
-  stability: 0.35,  // Lower stability = more dynamic/energetic delivery
+  stability: 0.5,  // Increased stability for less robotic delivery
   similarityBoost: 0.8,
   style: 0.15,  // Slight style boost for more expressive delivery
   speakerBoost: true,
@@ -117,7 +117,7 @@ export async function textToSpeech(
     if (!response.ok) {
       const errorText = await response.text();
       console.error('[ElevenLabs] API error:', response.status, errorText);
-      
+
       // Check for quota/rate limit errors
       if (response.status === 429) {
         throw new Error('ElevenLabs rate limit exceeded');
@@ -206,7 +206,7 @@ export class ElevenLabsSpeaker {
 
   constructor(config: ElevenLabsConfig = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
-    
+
     // Check if ElevenLabs is available
     if (!isElevenLabsConfigured()) {
       console.log('[ElevenLabsSpeaker] No API key, will use Web Speech fallback');
@@ -246,7 +246,7 @@ export class ElevenLabsSpeaker {
   async speak(text: string, options: SpeakOptions = {}): Promise<void> {
     // Add to queue
     this.queue.push({ text, options });
-    
+
     // Process queue if not already processing
     if (!this.isProcessing) {
       await this.processQueue();
@@ -304,14 +304,14 @@ export class ElevenLabsSpeaker {
    */
   private async speakWithElevenLabs(text: string, options: SpeakOptions): Promise<boolean> {
     const mergedConfig = { ...this.config, ...options };
-    
+
     const audioBlob = await textToSpeech(text, mergedConfig);
     if (!audioBlob) return false;
 
     return new Promise((resolve) => {
       const audioUrl = URL.createObjectURL(audioBlob);
       this.currentAudio = new Audio(audioUrl);
-      
+
       this.currentAudio.onended = () => {
         URL.revokeObjectURL(audioUrl);
         this.currentAudio = null;
@@ -375,7 +375,7 @@ export class ElevenLabsSpeaker {
    */
   stop(): void {
     this.queue = [];
-    
+
     if (this.currentAudio) {
       this.currentAudio.pause();
       this.currentAudio.currentTime = 0;

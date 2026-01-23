@@ -19,6 +19,7 @@ interface VoiceFeedbackDisplayProps {
     voiceEnabled: boolean;
     voiceProvider?: 'elevenlabs' | 'webspeech';
     isSpeaking?: boolean;
+    onToggleVoice?: () => void;
 }
 
 export default function VoiceFeedbackDisplay({
@@ -29,6 +30,7 @@ export default function VoiceFeedbackDisplay({
     voiceEnabled,
     voiceProvider = 'webspeech',
     isSpeaking = false,
+    onToggleVoice
 }: VoiceFeedbackDisplayProps) {
     const [showHistory, setShowHistory] = useState(false);
 
@@ -44,7 +46,7 @@ export default function VoiceFeedbackDisplay({
     };
 
     const getTypeIcon = (_type: VoiceMessage['type']) => {
-        return null;
+        return null; // Icons are simplified out for clean look
     };
 
     return (
@@ -61,6 +63,20 @@ export default function VoiceFeedbackDisplay({
                         </div>
                     )}
                 </div>
+
+                {/* Voice Toggle Button */}
+                {onToggleVoice && (
+                    <button
+                        onClick={onToggleVoice}
+                        className={`text-xs px-2 py-0.5 rounded border transition-colors ${voiceEnabled
+                                ? 'bg-bg-tertiary border-border-subtle text-text-primary hover:bg-bg-primary'
+                                : 'bg-bg-primary border-border-subtle text-text-muted opacity-70 hover:opacity-100'
+                            }`}
+                        title={voiceEnabled ? "Mute Voice" : "Enable Voice"}
+                    >
+                        {voiceEnabled ? '🔊 ON' : '🔇 OFF'}
+                    </button>
+                )}
             </div>
 
             {/* Content wrapper with padding */}

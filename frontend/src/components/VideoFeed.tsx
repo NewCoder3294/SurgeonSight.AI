@@ -20,6 +20,7 @@ interface VideoFeedProps {
     metrics?: SurgicalMetrics | null;
     expertAngleTarget?: number; // Expert baseline angle for comparison
     detectedTool?: { type: string; confidence: number }; // Detected surgical tool
+    onStreamReady?: (stream: MediaStream) => void;
 }
 
 /**
@@ -34,7 +35,8 @@ const VideoFeed = forwardRef(function VideoFeed({
     showMetrics = true,
     metrics = null,
     expertAngleTarget: _expertAngleTarget,
-    detectedTool
+    detectedTool,
+    onStreamReady
 }: VideoFeedProps, ref: any) {
     const videoRef = useRef<any>(null);
     const canvasRef = useRef<any>(null);
@@ -103,6 +105,10 @@ const VideoFeed = forwardRef(function VideoFeed({
 
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
+            }
+
+            if (onStreamReady) {
+                onStreamReady(stream);
             }
         } catch (err) {
             console.error('Camera error:', err);

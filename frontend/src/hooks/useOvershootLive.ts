@@ -112,7 +112,7 @@ FORBIDDEN:
 // Prompt variants for different analysis contexts
 export const COACHING_PROMPTS = {
   default: LIVE_COACHING_PROMPT,
-  
+
   // Focus on angles and positioning
   angles: `You are analyzing hand angles in a surgical practice session. Focus ONLY on wrist angles, pronation/supination, and blade orientation.
 
@@ -236,8 +236,8 @@ function parseObservationResponse(
     const metricType = metricTypes.includes(parsed.metric_type) ? parsed.metric_type : undefined;
 
     const magnitudes = ['minor', 'moderate', 'significant'];
-    const correctionMagnitude = magnitudes.includes(parsed.correction_magnitude) 
-      ? parsed.correction_magnitude 
+    const correctionMagnitude = magnitudes.includes(parsed.correction_magnitude)
+      ? parsed.correction_magnitude
       : undefined;
 
     const hands = ['left', 'right', 'both', 'none'];
@@ -288,7 +288,7 @@ function parseObservationResponse(
     return observation;
   } catch (err) {
     console.warn('[OvershootLive] Failed to parse response:', err, text);
-    
+
     // Attempt graceful fallback for plain text responses
     if (text.length > 10 && text.length < 500) {
       return {
@@ -299,7 +299,7 @@ function parseObservationResponse(
         clipIndex,
       };
     }
-    
+
     return null;
   }
 }
@@ -321,11 +321,11 @@ export function useOvershootLive({
   const onObservationRef = useRef(onObservation);
   const onErrorRef = useRef(onError);
   const abortControllerRef = useRef<AbortController | null>(null);
-  
+
   // For adaptive prompts, rotate through types
   const _promptRotationRef = useRef<PromptType[]>(['default', 'angles', 'steadiness', 'grip']);
   const currentPromptIndexRef = useRef(0);
-  
+
   // Get current prompt based on settings
   const getCurrentPrompt = useCallback(() => {
     if (adaptivePrompts) {
@@ -370,17 +370,16 @@ export function useOvershootLive({
 
       const currentPrompt = getCurrentPrompt();
       console.log(`[OvershootLive] Using prompt type: ${adaptivePrompts ? 'adaptive' : promptType}`);
-      
+
       // Use SDK-recommended default parameters to avoid validation errors
       // The API requires: clip_length_seconds >= delay_seconds, fps 1-120, sampling_ratio 0-1
       const vision = createOvershootVision({
         prompt: currentPrompt,
         file,
         processing: {
-          clip_length_seconds: 1,
-          delay_seconds: 1,
-          fps: 15,
-          sampling_ratio: 0.1,
+          clip_length_seconds: 4,
+          delay_seconds: 2,
+          fps: 15, // Keep FPS reasonable
         },
         onResult: (text: string) => {
           if (resultReceived) return;

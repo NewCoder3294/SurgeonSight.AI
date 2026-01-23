@@ -190,17 +190,15 @@ export default function TrainingSession() {
         </section>
 
         {/* Connector line - only visible when analysis complete */}
-        <div className={`w-0.5 h-48 mx-auto my-12 transition-all duration-500 ${
-          analysisComplete 
-            ? 'bg-gradient-to-b from-accent-rust to-accent-rust/30 opacity-100' 
+        <div className={`w-0.5 h-48 mx-auto my-12 transition-all duration-500 ${analysisComplete
+            ? 'bg-gradient-to-b from-accent-rust to-accent-rust/30 opacity-100'
             : 'bg-gradient-to-b from-border-subtle to-transparent opacity-30'
-        }`}></div>
+          }`}></div>
 
         <section
           ref={livePracticeSectionRef}
-          className={`relative mt-24 transition-all duration-700 ${
-            !livePracticeUnlocked ? 'opacity-40' : 'opacity-100'
-          }`}
+          className={`relative mt-24 transition-all duration-700 ${!livePracticeUnlocked ? 'opacity-40' : 'opacity-100'
+            }`}
         >
           {/* Lock overlay when not unlocked */}
           {!livePracticeUnlocked && (
@@ -232,6 +230,7 @@ export default function TrainingSession() {
             <div className="relative min-h-[400px] transition-all duration-500 mt-6">
               <CoachingSession
                 embedded={true}
+                isSessionActive={livePracticeUnlocked}
                 expertMetrics={analysisResult?.expertStats ? {
                   angleTarget: analysisResult.expertStats.angleTarget,
                   angleTolerance: analysisResult.expertStats.angleTolerance,
