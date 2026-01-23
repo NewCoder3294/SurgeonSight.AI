@@ -548,7 +548,6 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                                 ref={videoFeedRef}
                                 detectionBox={detectionBox}
                                 hands={detectedHands}
-                                gripState={mockGrip}
                                 showMetrics={true}
                                 metrics={currentMetrics}
                                 expertAngleTarget={expertMetrics?.angleTarget}

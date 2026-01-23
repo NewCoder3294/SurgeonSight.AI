@@ -132,7 +132,7 @@ const VideoFeed = forwardRef(function VideoFeed({
             {/* Canvas for hand landmark overlay */}
             <canvas
                 ref={canvasRef}
-                className="absolute top-0 left-0 w-full h-full pointer-events-none -scale-x-100"
+                className="absolute top-0 left-0 w-full h-full pointer-events-none"
             />
 
             {/* Overlay effects */}
@@ -149,21 +149,6 @@ const VideoFeed = forwardRef(function VideoFeed({
                 {/* Grid overlay */}
                 <div className="absolute top-0 left-0 right-0 bottom-0 bg-[linear-gradient(rgba(196,92,62,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(196,92,62,0.05)_1px,transparent_1px)] bg-[length:60px_60px]" />
 
-                {/* Detection box (legacy support) */}
-                {detectionBox && (
-                    <div
-                        className="absolute border-2 border-accent-rust bg-[rgba(196,92,62,0.1)] animate-pulse-box flex flex-col justify-end p-1"
-                        style={{
-                            left: `${detectionBox.x}%`,
-                            top: `${detectionBox.y}%`,
-                            width: `${detectionBox.width}%`,
-                            height: `${detectionBox.height}%`,
-                        }}
-                    >
-                        <span className="font-mono text-[0.55rem] tracking-wider text-accent-rust bg-[rgba(10,10,10,0.8)] px-1 py-0.5 self-start [data-theme='light']:bg-[rgba(255,255,255,0.9)]">HAND DETECTED</span>
-                        <span className="font-mono text-[0.5rem] tracking-wider text-text-dim bg-[rgba(10,10,10,0.8)] px-1 py-0.5 self-start mt-0.5 [data-theme='light']:bg-[rgba(255,255,255,0.9)]">CONF: 0.{Math.floor(75 + Math.random() * 20)}</span>
-                    </div>
-                )}
 
                 {/* Grip state indicator */}
                 {gripState && (
@@ -255,8 +240,9 @@ function drawHandSkeleton(ctx: any, landmarks: any, width: any, height: any) {
         const p2 = landmarks[end];
 
         ctx.beginPath();
-        ctx.moveTo(p1.x * width, p1.y * height);
-        ctx.lineTo(p2.x * width, p2.y * height);
+        // FLIP X
+        ctx.moveTo((1 - p1.x) * width, p1.y * height);
+        ctx.lineTo((1 - p2.x) * width, p2.y * height);
         ctx.stroke();
     });
 }
@@ -268,9 +254,9 @@ function drawAngleArc(ctx: any, landmarks: any, angle: number, width: number, he
     const wrist = landmarks[0];  // Wrist
     const indexTip = landmarks[8]; // Index fingertip
 
-    const wristX = wrist.x * width;
+    const wristX = (1 - wrist.x) * width;
     const wristY = wrist.y * height;
-    const indexX = indexTip.x * width;
+    const indexX = (1 - indexTip.x) * width;
     const indexY = indexTip.y * height;
 
     // Draw angle arc
@@ -316,7 +302,7 @@ function drawAngleArc(ctx: any, landmarks: any, angle: number, width: number, he
 // Draw hand landmark points
 function drawHandLandmarks(ctx: any, landmarks: any, width: any, height: any) {
     landmarks.forEach((point: any, index: any) => {
-        const x = point.x * width;
+        const x = (1 - point.x) * width;
         const y = point.y * height;
 
         // Different colors for different parts
@@ -350,11 +336,11 @@ function drawPinchAngle(ctx: any, landmarks: any, angle: number, width: number, 
     const indexMcp = landmarks[5];  // Index MCP (base)
     const indexTip = landmarks[8];  // Index tip
 
-    const thumbX = thumbTip.x * width;
+    const thumbX = (1 - thumbTip.x) * width;
     const thumbY = thumbTip.y * height;
-    const mcpX = indexMcp.x * width;
+    const mcpX = (1 - indexMcp.x) * width;
     const mcpY = indexMcp.y * height;
-    const indexX = indexTip.x * width;
+    const indexX = (1 - indexTip.x) * width;
     const indexY = indexTip.y * height;
 
     // Draw arc at index MCP showing pinch angle
@@ -399,9 +385,9 @@ function drawFingerBend(ctx: any, landmarks: any, bendPercent: number, width: nu
     const indexPip = landmarks[6];  // Index PIP (middle joint)
     const indexDip = landmarks[7];  // Index DIP
 
-    const pipX = indexPip.x * width;
+    const pipX = (1 - indexPip.x) * width;
     const pipY = indexPip.y * height;
-    const dipX = indexDip.x * width;
+    const dipX = (1 - indexDip.x) * width;
     const dipY = indexDip.y * height;
 
     // Position indicator between PIP and DIP
