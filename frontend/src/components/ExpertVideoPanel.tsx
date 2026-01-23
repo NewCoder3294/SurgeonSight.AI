@@ -16,9 +16,32 @@ interface ExpertVideoPanelProps {
     notableMoments: Array<{ text: string; timestampMs: number; timestampSource?: 'code' | 'heuristic' }>;
     lowSignal?: boolean;
     scaffold?: string[];
+    expertStats?: {
+      angleTarget: number;
+      angleTolerance: number;
+      steadinessTarget: number;
+      expectationGripType: string;
+      speedOptimal: number;
+      speedTolerance: number;
+      contextElements?: string[];
+    };
   }) => void;
   onError?: (error: string) => void;
   onVideoUploaded?: () => void;
+}
+
+// Interface for per-hand accumulated metrics
+interface HandMetricsAccumulator {
+  angles: number[];
+  steadiness: number[];
+  speeds: number[];
+  gripCounts: Record<string, number>;
+}
+
+// Interface for accumulated metrics (split by hand)
+interface AccumulatedMetrics {
+  left: HandMetricsAccumulator;
+  right: HandMetricsAccumulator;
 }
 
 /**
@@ -80,7 +103,7 @@ STRICT RULES:
    - NO repetition: Do not repeat the same concept unless severity escalates
    - Categories: "instrument" (grip/angle/control), "exposure" (retraction/visualization), "tissue" (dissection/handling), "safety" (risk/prevention), "efficiency" (motion economy), "technique" (hemostasis/cautery)
 
-2. OVERVIEW: 2-3 sentences max. Abstract themes only. No repetition.
+2. OVERVIEW: 5-8 sentences. Detailed, comprehensive paragraph describing the procedure technique, flow, and key actions. Be descriptive.
 
 3. KEY_CONCEPTS: 4-8 items, ≤8 words each, verb-first. Extract from observations as teachable principles.
 
@@ -125,6 +148,12 @@ export default function ExpertVideoPanel({
     lastUpdateTime: number;
   }>({ lastUpdateTime: 0 });
 
+  // Accumulate metrics for expert baseline
+  const metricsAccumulatorRef = useRef<AccumulatedMetrics>({
+    left: { angles: [], steadiness: [], speeds: [], gripCounts: { pencil: 0, power: 0, unknown: 0 } },
+    right: { angles: [], steadiness: [], speeds: [], gripCounts: { pencil: 0, power: 0, unknown: 0 } }
+  });
+
   // Throttling: Queue incoming Overshoot messages and flush to UI on interval
   // MIN_TIME_BETWEEN_NOTES_MS: Minimum time (3-5 seconds) between accepting new notes
   // To tune throttling: Adjust MIN_TIME_BETWEEN_NOTES_MS (higher = more sparse, lower = more frequent)
@@ -142,6 +171,25 @@ export default function ExpertVideoPanel({
     enabled: !!videoUrl, // Enable tracking when video is loaded
     targetFps: 60 // Higher FPS for smooth video playback
   });
+
+  // Accumulate metrics when hands are detected during analysis
+  useEffect(() => {
+    if (isAnalyzing && detectedHands.length > 0) {
+      detectedHands.forEach(hand => {
+        // Only collect valid metrics if handedness is known
+        if (hand.metrics && (hand.handedness === 'Left' || hand.handedness === 'Right')) {
+          const target = hand.handedness === 'Left' ? metricsAccumulatorRef.current.left : metricsAccumulatorRef.current.right;
+
+          target.angles.push(hand.metrics.scalpelAngle);
+          target.steadiness.push(hand.metrics.steadiness);
+          target.speeds.push(hand.metrics.speed);
+
+          const grip = hand.metrics.gripType || 'unknown';
+          target.gripCounts[grip] = (target.gripCounts[grip] || 0) + 1;
+        }
+      });
+    }
+  }, [detectedHands, isAnalyzing]);
 
   // Draw hand overlays
   useEffect(() => {
@@ -233,8 +281,19 @@ export default function ExpertVideoPanel({
       messageQueueRef.current = [];
       momentsQueueRef.current = [];
       seenObservationSignaturesRef.current.clear();
+      // Reset metrics accumulator
+      metricsAccumulatorRef.current = {
+        left: { angles: [], steadiness: [], speeds: [], gripCounts: { pencil: 0, power: 0, unknown: 0 } },
+        right: { angles: [], steadiness: [], speeds: [], gripCounts: { pencil: 0, power: 0, unknown: 0 } }
+      };
       structuredDataRef.current = { lastUpdateTime: 0 };
       setError(null);
+
+      // Auto-play video for MediaPipe tracking (muted)
+      if (videoRef.current) {
+        videoRef.current.muted = true;
+        videoRef.current.play().catch(e => console.log("Auto-play blocked:", e));
+      }
 
       // Get video duration for prompt (default to 60s if not available)
       const videoDurationMs = videoRef.current?.duration
@@ -349,6 +408,26 @@ export default function ExpertVideoPanel({
       onError?.(errorMsg);
       onAnalysisComplete();
     }
+  };
+
+  /**
+   * Helper: Calculate statistics (mean, std dev) from array
+   */
+  const calculateStats = (values: number[]) => {
+    if (values.length === 0) return { mean: 0, std: 0, min: 0, max: 0 };
+
+    const sum = values.reduce((a, b) => a + b, 0);
+    const mean = sum / values.length;
+
+    const variance = values.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / values.length;
+    const std = Math.sqrt(variance);
+
+    return {
+      mean,
+      std,
+      min: Math.min(...values),
+      max: Math.max(...values)
+    };
   };
 
   /**
@@ -547,6 +626,64 @@ export default function ExpertVideoPanel({
       visionInstanceRef.current = null;
     }
 
+    // Pause video when analysis completes
+    if (videoRef.current) {
+      videoRef.current.pause();
+    }
+
+    // Process accumulated code metrics for BOTH hands
+    const processHandStats = (accumulator: HandMetricsAccumulator) => {
+      const angleStats = calculateStats(accumulator.angles);
+      const steadinessStats = calculateStats(accumulator.steadiness);
+      const speedStats = calculateStats(accumulator.speeds);
+
+      // Determine dominant grip
+      let dominantGrip = 'pencil';
+      let maxCount = 0;
+      Object.entries(accumulator.gripCounts).forEach(([grip, count]) => {
+        if (count > maxCount) {
+          maxCount = count;
+          dominantGrip = grip;
+        }
+      });
+
+      return {
+        angleTarget: Math.round(angleStats.mean) || 45,
+        angleTolerance: Math.round(angleStats.std * 2) || 15,
+        steadinessTarget: Math.round(steadinessStats.mean) || 70,
+        expectationGripType: dominantGrip,
+        speedOptimal: Math.round(speedStats.mean) || 50,
+        speedTolerance: Math.round(speedStats.std * 2) || 15
+      };
+    };
+
+    const leftStats = processHandStats(metricsAccumulatorRef.current.left);
+    const rightStats = processHandStats(metricsAccumulatorRef.current.right);
+
+    // Create expert metrics object (composite)
+    const expertStats = {
+      // Legacy support (defaults to Right hand if available, else Left)
+      angleTarget: rightStats.angleTarget || leftStats.angleTarget,
+      angleTolerance: rightStats.angleTolerance || leftStats.angleTolerance,
+      steadinessTarget: rightStats.steadinessTarget || leftStats.steadinessTarget,
+      expectationGripType: rightStats.expectationGripType || leftStats.expectationGripType,
+      speedOptimal: rightStats.speedOptimal || leftStats.speedOptimal,
+      speedTolerance: rightStats.speedTolerance || leftStats.speedTolerance,
+
+      // New separate stats
+      leftHand: leftStats,
+      rightHand: rightStats,
+
+      // Pass textual context for AI coaching
+      contextElements: [
+        ...(structuredDataRef.current.keyConcepts || []),
+        ...(structuredDataRef.current.overview ? [structuredDataRef.current.overview] : []),
+        ...(notesAccumulatorRef.current.map(n => n.text).slice(0, 5)) // Top 5 observations
+      ].filter(Boolean)
+    };
+
+    console.log("Calculated Expert Stats:", expertStats);
+
     // Process accumulated notes (generate Overview at completion only)
     const { extractSummary, extractKeyConcepts, extractNotableMoments, deduplicateNotes, thinObservationsDeterministic } = await import('../utils/noteProcessing');
 
@@ -688,6 +825,7 @@ export default function ExpertVideoPanel({
       notableMoments: structuredMoments,
       lowSignal,
       scaffold,
+      expertStats // Pass the calculated stats
     });
 
     // Mark analysis as complete

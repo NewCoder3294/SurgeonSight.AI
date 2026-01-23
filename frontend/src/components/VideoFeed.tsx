@@ -162,24 +162,7 @@ const VideoFeed = forwardRef(function VideoFeed({
                 )}
             </div>
 
-            {/* Expert Target Indicator */}
-            {expertAngleTarget !== undefined && metrics && (
-                <div className="absolute top-5 left-5 p-3 bg-[rgba(10,15,26,0.95)] border-2 border-border-default backdrop-blur-md shadow-lg [data-theme='light']:bg-[rgba(248,250,252,0.95)]">
-                    <div className="flex flex-col gap-2">
-                        <span className="font-mono text-xs tracking-widest text-text-muted uppercase font-bold">Expert Target</span>
-                        <div className="flex items-center gap-3">
-                            <span className="font-mono text-3xl text-accent-rust font-bold">{expertAngleTarget}°</span>
-                            <span className="font-mono text-sm text-text-muted">vs</span>
-                            <span className={`font-mono text-3xl font-bold ${Math.abs(metrics.scalpelAngle - expertAngleTarget) <= 15 ? 'text-success' : 'text-warning'}`}>
-                                {Math.round(metrics.scalpelAngle)}°
-                            </span>
-                        </div>
-                        <div className={`font-mono text-xs tracking-wider uppercase font-bold ${Math.abs(metrics.scalpelAngle - expertAngleTarget) <= 15 ? 'text-success' : 'text-warning'}`}>
-                            {Math.abs(metrics.scalpelAngle - expertAngleTarget) <= 15 ? '✓ ON TARGET' : `↻ ADJUST ${Math.round(Math.abs(metrics.scalpelAngle - expertAngleTarget))}°`}
-                        </div>
-                    </div>
-                </div>
-            )}
+
 
             {/* Detected Tool Indicator */}
             {detectedTool && detectedTool.type !== 'none' && detectedTool.confidence > 0.4 && (

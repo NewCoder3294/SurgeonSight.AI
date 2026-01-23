@@ -501,7 +501,8 @@ export function useVoiceCoach() {
         expectedGripType: string;
         speedOptimal?: number; // Optimal speed target (default 50)
         speedTolerance?: number; // Tolerance for speed (default 15)
-    }) => {
+        contextElements?: string[]; // Expert technique context
+    }, label?: string) => {
         const now = Date.now();
         const timeSinceLastCoach = now - lastCoachTimeRef.current;
 
@@ -525,6 +526,29 @@ export function useVoiceCoach() {
         // Helper to get random phrase from array
         const getRandomPhrase = (phrases: string[]) =>
             phrases[Math.floor(Math.random() * phrases.length)];
+
+        // Helper to mix in expert context (20% chance if context exists)
+        const getContextualFeedback = (baseFeedback: string, type: 'speed' | 'angle' | 'steadiness' | 'grip'): string => {
+            if (!expert.contextElements || expert.contextElements.length === 0 || Math.random() > 0.3) {
+                return baseFeedback;
+            }
+
+            // Pick a relevant context phrase if possible (naive matching)
+            const relevantContext = expert.contextElements.find(c => c.toLowerCase().includes(type));
+            const randomContext = expert.contextElements[Math.floor(Math.random() * expert.contextElements.length)];
+            const contextToUse = relevantContext || randomContext;
+
+            // Safely shorten context if too long
+            const shortContext = contextToUse.length > 60 ? contextToUse.substring(0, 60) + '...' : contextToUse;
+
+            const templates = [
+                `Recall the expert technique: ${shortContext}. ${baseFeedback}`,
+                `${baseFeedback} As seen in the reference: ${shortContext}.`,
+                `The expert demonstrates ${shortContext}. ${baseFeedback}`
+            ];
+
+            return templates[Math.floor(Math.random() * templates.length)];
+        };
 
         // Check if on track for streak counting
         const onTrack = absAngleDiff <= expert.angleTolerance &&
@@ -557,7 +581,15 @@ export function useVoiceCoach() {
                     feedbackOptions.push(...COACHING_PHRASES.handMovement.slice(0, 5));
                 }
 
-                speak(getRandomPhrase(feedbackOptions), 'encouragement', 'normal');
+                // 20% chance to reinforce with expert context even when doing well
+                let feedback = getRandomPhrase(feedbackOptions);
+                if (Math.random() < 0.2 && expert.contextElements && expert.contextElements.length > 0) {
+                    const ctx = expert.contextElements[Math.floor(Math.random() * expert.contextElements.length)];
+                    feedback = `Excellent! You're matching the expert technique: ${ctx}`;
+                }
+
+                const prefix = label ? `${label}: ` : '';
+                speak(prefix + feedback, 'encouragement', 'normal');
                 lastCoachTimeRef.current = now;
             }
         } else {
@@ -565,17 +597,20 @@ export function useVoiceCoach() {
             setStats(prev => ({ ...prev, currentStreak: 0 }));
 
             // Determine what needs correction - prioritize by severity
+            const prefix = label ? `${label}: ` : '';
 
             // 1. Speed issues (highest priority for surgical procedures)
             if (currentSpeed > speedOptimal + speedTolerance * 1.5) {
                 // Too fast - negative feedback
                 const phrase = getRandomPhrase(COACHING_PHRASES.speedTooFast);
-                speak(phrase, 'warning', 'high');
+                const contextualPhrase = getContextualFeedback(phrase, 'speed');
+                speak(prefix + contextualPhrase, 'warning', 'high');
                 lastCoachTimeRef.current = now;
             } else if (currentSpeed < speedOptimal - speedTolerance * 1.5) {
                 // Too slow - negative feedback
                 const phrase = getRandomPhrase(COACHING_PHRASES.speedTooSlow);
-                speak(phrase, 'coaching', 'high');
+                const contextualPhrase = getContextualFeedback(phrase, 'speed');
+                speak(prefix + contextualPhrase, 'coaching', 'high');
                 lastCoachTimeRef.current = now;
             }
             // 2. Angle deviation (only if hand detected)
@@ -583,27 +618,32 @@ export function useVoiceCoach() {
                 const phrases = angleDiff > 0 ? COACHING_PHRASES.angleHigh : COACHING_PHRASES.angleLow;
                 const phrase = getRandomPhrase(phrases);
                 const fullMessage = `${phrase} You're at ${Math.round(current.scalpelAngle)} degrees, target is ${expert.angleTarget}!`;
-                speak(fullMessage, 'warning', 'high');
+                // Inject context about angle/position
+                const contextualMessage = getContextualFeedback(fullMessage, 'angle');
+                speak(prefix + contextualMessage, 'warning', 'high');
                 lastCoachTimeRef.current = now;
             }
             // 3. Steadiness issue (only if hand detected)
             else if (current.steadiness < expert.steadinessTarget - 20 && handDetected) {
                 // Use handUnstable phrases
                 const phrase = getRandomPhrase(COACHING_PHRASES.handUnstable);
-                speak(phrase, 'coaching', 'high');
+                const contextualPhrase = getContextualFeedback(phrase, 'steadiness');
+                speak(prefix + contextualPhrase, 'coaching', 'high');
                 lastCoachTimeRef.current = now;
             }
             // 4. Hand positioning issues (only if hand detected)
             else if (handDetected && absAngleDiff > expert.angleTolerance) {
                 const phrase = getRandomPhrase(COACHING_PHRASES.handPositioningBad);
-                speak(phrase, 'coaching', 'normal');
+                speak(prefix + phrase, 'coaching', 'normal');
                 lastCoachTimeRef.current = now;
             }
             // 5. Grip mismatch
             else if (expert.expectedGripType !== 'unknown' &&
                 current.gripType !== 'unknown' &&
                 current.gripType !== expert.expectedGripType) {
-                speak(getRandomPhrase(COACHING_PHRASES.gripChange), 'coaching', 'normal');
+                const msg = expert.expectedGripType === 'pencil' ? "Switch to pencil grip!" : "Switch to power grip!";
+                const contextualMsg = getContextualFeedback(msg, 'grip');
+                speak(prefix + contextualMsg, 'coaching', 'normal');
                 lastCoachTimeRef.current = now;
             }
         }

@@ -113,37 +113,7 @@ export default function Hand3DVisualization({
                 />
             </div>
 
-            {/* Metrics overlay */}
-            <div className="absolute bottom-2 left-2 right-2 flex justify-between items-end">
-                <div className="flex flex-col gap-1">
-                    <span className="font-mono text-[0.6rem] text-text-dim uppercase">Finger Bend</span>
-                    <div className="flex items-center gap-2">
-                        <div className="w-16 h-2 bg-bg-secondary rounded overflow-hidden">
-                            <div
-                                className="h-full transition-all duration-200"
-                                style={{
-                                    width: `${metrics?.fingerBend || 0}%`,
-                                    backgroundColor: (metrics?.fingerBend || 0) > 60
-                                        ? 'var(--error)'
-                                        : (metrics?.fingerBend || 0) > 30
-                                            ? 'var(--warning)'
-                                            : 'var(--success)'
-                                }}
-                            />
-                        </div>
-                        <span className="font-mono text-sm text-text-cream">
-                            {metrics?.fingerBend?.toFixed(0) || '--'}%
-                        </span>
-                    </div>
-                </div>
 
-                <div className="flex flex-col gap-1 items-end">
-                    <span className="font-mono text-[0.6rem] text-text-dim uppercase">Pinch Angle</span>
-                    <span className="font-mono text-lg text-accent-rust">
-                        {metrics?.pinchAngle?.toFixed(0) || '--'}°
-                    </span>
-                </div>
-            </div>
 
             {/* Hand label */}
             <div className="absolute top-2 left-2">

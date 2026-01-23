@@ -15,6 +15,17 @@ export default function TrainingSession() {
     notableMoments: Array<{ text: string; timestampMs: number; timestampSource?: 'code' | 'heuristic' }>;
     lowSignal?: boolean;
     scaffold?: string[];
+    expertStats?: {
+      angleTarget: number;
+      angleTolerance: number;
+      steadinessTarget: number;
+      expectationGripType: string;
+      speedOptimal: number;
+      speedTolerance: number;
+      contextElements?: string[];
+      leftHand?: any;
+      rightHand?: any;
+    };
   } | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
 
@@ -28,9 +39,6 @@ export default function TrainingSession() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
-
-  // Auto-scroll to CTA button when analysis completes
-
 
   const handleAnalysisStart = () => {
     setIsAnalyzing(true);
@@ -51,6 +59,17 @@ export default function TrainingSession() {
     notableMoments: Array<{ text: string; timestampMs: number; timestampSource?: 'code' | 'heuristic' }>;
     lowSignal?: boolean;
     scaffold?: string[];
+    expertStats?: {
+      angleTarget: number;
+      angleTolerance: number;
+      steadinessTarget: number;
+      expectationGripType: string;
+      speedOptimal: number;
+      speedTolerance: number;
+      contextElements?: string[];
+      leftHand?: any;
+      rightHand?: any;
+    };
   }) => {
     setAnalysisResult(result);
   };
@@ -120,8 +139,6 @@ export default function TrainingSession() {
 
           {/* Key Concepts Footer - Renders below both panels, only after successful Overshoot parsing */}
 
-
-
           {/* Key Concepts Section - Full width standalone box (Now inside the main section) */}
           <div className="mt-6">
             <div className="bg-bg-tertiary/30 border border-border-subtle">
@@ -157,8 +174,6 @@ export default function TrainingSession() {
           )}
         </section>
 
-
-
         <div className="w-0.5 h-32 bg-gradient-to-b from-accent-rust to-transparent mx-auto opacity-30"></div>
 
         <section
@@ -171,7 +186,25 @@ export default function TrainingSession() {
           </div>
 
           <div className="relative min-h-[400px] transition-all duration-500 mt-6">
-            <CoachingSession embedded={true} />
+            <CoachingSession
+              embedded={true}
+              expertMetrics={analysisResult?.expertStats ? {
+                angleTarget: analysisResult.expertStats.angleTarget,
+                angleTolerance: analysisResult.expertStats.angleTolerance,
+                angleMin: analysisResult.expertStats.angleTarget - analysisResult.expertStats.angleTolerance,
+                angleMax: analysisResult.expertStats.angleTarget + analysisResult.expertStats.angleTolerance,
+                steadinessTarget: analysisResult.expertStats.steadinessTarget,
+                expectedGripType: (analysisResult.expertStats.expectationGripType as any) || 'unknown',
+                leftHand: analysisResult.expertStats.leftHand,
+                rightHand: analysisResult.expertStats.rightHand,
+                techniqueContext: analysisResult.expertStats.contextElements,
+                techniqueNotes: analysisResult.keyConcepts,
+                notableMoments: analysisResult.notableMoments.map(m => ({
+                  time: m.timestampMs / 1000,
+                  note: m.text
+                }))
+              } : undefined}
+            />
           </div>
         </section>
       </main>

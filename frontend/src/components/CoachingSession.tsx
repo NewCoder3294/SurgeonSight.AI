@@ -78,8 +78,12 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
     // Voice feedback hook (legacy - keep for fallback)
     const { playFeedback, speakWithWebSpeech, isSpeaking } = useVoiceFeedback();
 
-    // NEW: Mind-blowing voice coach with typing animation
-    const voiceCoach = useVoiceCoach();
+    // NEW: Mind-blowing voice coach with typing animation (separate for each hand)
+    const leftVoiceCoach = useVoiceCoach();
+    const rightVoiceCoach = useVoiceCoach();
+
+    // Legacy/Global coach for AI observations
+    const globalVoiceCoach = useVoiceCoach();
 
     // Handle Overshoot AI observation
     const handleAiObservation = useCallback((observation: OvershootObservation) => {
@@ -87,8 +91,8 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
 
         // Feed to voice coach with appropriate priority
         const priority = observation.category === 'safety' ? 'high' : 'normal';
-        voiceCoach.speak(observation.text, 'ai_observation', priority);
-    }, [voiceCoach]);
+        globalVoiceCoach.speak(observation.text, 'ai_observation', priority);
+    }, [globalVoiceCoach]);
 
     // Overshoot live analysis hook
     const overshootLive = useOvershootLive({
@@ -165,45 +169,56 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                 setIsAnalyzing(false);
                 setTimeout(() => setIsAnalyzing(true), 200);
 
-                // Use the new voice coach for intelligent coaching with expert comparison
-                if (expertMetrics && voiceCoach.voiceEnabled) {
-                    voiceCoach.coachOnMetrics(
-                        {
-                            scalpelAngle: metrics.scalpelAngle,
-                            steadiness: metrics.steadiness,
-                            gripType: metrics.gripType,
-                            speed: metrics.speed,
-                            handDetected: true // Hand is detected since we're in this callback
-                        },
-                        {
-                            angleTarget: expertMetrics.angleTarget,
-                            angleTolerance: expertMetrics.angleTolerance || 15,
-                            steadinessTarget: expertMetrics.steadinessTarget || 70,
-                            expectedGripType: expertMetrics.expectedGripType || 'unknown',
-                            speedOptimal: 50,
-                            speedTolerance: 15
-                        }
-                    );
-                } else if (voiceCoach.voiceEnabled) {
-                    // No expert baseline - use mock AI coaching based on current metrics
-                    // This uses the coachOnMetrics with default targets to generate intelligent feedback
-                    voiceCoach.coachOnMetrics(
-                        {
-                            scalpelAngle: metrics.scalpelAngle,
-                            steadiness: metrics.steadiness,
-                            gripType: metrics.gripType,
-                            speed: metrics.speed,
-                            handDetected: true
-                        },
-                        {
-                            angleTarget: 45, // Default target angle
-                            angleTolerance: 20, // More lenient without expert baseline
-                            steadinessTarget: 70,
-                            expectedGripType: 'pencil',
-                            speedOptimal: 50,
-                            speedTolerance: 20 // More lenient tolerance
-                        }
-                    );
+                // Coach Left Hand
+                if (leftVoiceCoach.voiceEnabled) {
+                    const leftHand = hands.find(h => h.handedness === 'Left');
+                    if (leftHand) {
+                        leftVoiceCoach.coachOnMetrics(
+                            {
+                                scalpelAngle: leftHand.metrics.scalpelAngle,
+                                steadiness: leftHand.metrics.steadiness,
+                                gripType: leftHand.metrics.gripType,
+                                speed: leftHand.metrics.speed,
+                                handDetected: true
+                            },
+                            {
+                                angleTarget: expertMetrics?.leftHand?.angleTarget ?? expertMetrics?.angleTarget ?? 45,
+                                angleTolerance: expertMetrics?.leftHand?.angleTolerance ?? expertMetrics?.angleTolerance ?? 15,
+                                steadinessTarget: expertMetrics?.leftHand?.steadinessTarget ?? expertMetrics?.steadinessTarget ?? 70,
+                                expectedGripType: expertMetrics?.leftHand?.expectedGripType as any ?? expertMetrics?.expectedGripType ?? 'unknown',
+                                speedOptimal: expertMetrics?.leftHand?.speedOptimal ?? 50,
+                                speedTolerance: expertMetrics?.leftHand?.speedTolerance ?? 15,
+                                contextElements: expertMetrics?.techniqueContext
+                            },
+                            'Left Hand'
+                        );
+                    }
+                }
+
+                // Coach Right Hand
+                if (rightVoiceCoach.voiceEnabled) {
+                    const rightHand = hands.find(h => h.handedness === 'Right');
+                    if (rightHand) {
+                        rightVoiceCoach.coachOnMetrics(
+                            {
+                                scalpelAngle: rightHand.metrics.scalpelAngle,
+                                steadiness: rightHand.metrics.steadiness,
+                                gripType: rightHand.metrics.gripType,
+                                speed: rightHand.metrics.speed,
+                                handDetected: true
+                            },
+                            {
+                                angleTarget: expertMetrics?.rightHand?.angleTarget ?? expertMetrics?.angleTarget ?? 45,
+                                angleTolerance: expertMetrics?.rightHand?.angleTolerance ?? expertMetrics?.angleTolerance ?? 15,
+                                steadinessTarget: expertMetrics?.rightHand?.steadinessTarget ?? expertMetrics?.steadinessTarget ?? 70,
+                                expectedGripType: expertMetrics?.rightHand?.expectedGripType as any ?? expertMetrics?.expectedGripType ?? 'unknown',
+                                speedOptimal: expertMetrics?.rightHand?.speedOptimal ?? 50,
+                                speedTolerance: expertMetrics?.rightHand?.speedTolerance ?? 15,
+                                contextElements: expertMetrics?.techniqueContext
+                            },
+                            'Right Hand'
+                        );
+                    }
                 }
             }
         }
@@ -435,8 +450,8 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
             }
         }
 
-        // Generate and speak the summary
-        const summary = voiceCoach.speakSummary();
+        // Generate and speak the summary (merging stats)
+        const summary = rightVoiceCoach.speakSummary(); // Primarily use Right hand for summary or merge later
         setSessionSummary({
             ...summary,
             duration: sessionTime
@@ -496,14 +511,63 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                                 const leftMetrics = leftHand?.metrics;
                                 return (
                                     <>
-                                        <div className="bg-bg-tertiary p-2 border border-border-subtle rounded">
-                                            <span className="font-mono text-[0.55rem] text-text-dim uppercase block mb-0.5">Angle</span>
-                                            <span className="font-mono text-xl text-gray-900">
-                                                {leftMetrics ? `${leftMetrics.scalpelAngle.toFixed(1)}°` : '--'}
+                                        {/* Expert Target Card Style - Left Hand */}
+                                        <div className="bg-black/40 p-4 border border-white/10 rounded-lg mb-2 relative overflow-hidden group">
+                                            <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/10 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-110"></div>
+
+                                            <span className="font-mono text-[0.55rem] text-text-muted tracking-[0.2em] uppercase block mb-3 relative z-10">
+                                                Expert Target
                                             </span>
+
+                                            <div className="flex items-center justify-between mb-4 relative z-10 px-1">
+                                                <div className="flex flex-col items-center">
+                                                    <span className="text-4xl font-mono font-medium text-blue-400 tracking-tighter">
+                                                        {expertMetrics?.leftHand?.angleTarget ?? expertMetrics?.angleTarget ?? 45}°
+                                                    </span>
+                                                    <span className="text-[0.5rem] uppercase tracking-wider text-blue-400/60 mt-0.5">Expert</span>
+                                                </div>
+
+                                                <span className="text-xs font-mono text-text-dim/50 lowercase italic">vs</span>
+
+                                                <div className="flex flex-col items-center">
+                                                    <span className={`text-4xl font-mono font-bold tracking-tighter transition-colors duration-300 ${leftMetrics && Math.abs(leftMetrics.scalpelAngle - (expertMetrics?.leftHand?.angleTarget ?? expertMetrics?.angleTarget ?? 45)) <= (expertMetrics?.leftHand?.angleTolerance ?? expertMetrics?.angleTolerance ?? 15)
+                                                            ? 'text-success' : 'text-error'
+                                                        }`}>
+                                                        {leftMetrics ? `${leftMetrics.scalpelAngle.toFixed(0)}°` : '--'}
+                                                    </span>
+                                                    <span className={`text-[0.5rem] uppercase tracking-wider mt-0.5 ${leftMetrics && Math.abs(leftMetrics.scalpelAngle - (expertMetrics?.leftHand?.angleTarget ?? expertMetrics?.angleTarget ?? 45)) <= (expertMetrics?.leftHand?.angleTolerance ?? expertMetrics?.angleTolerance ?? 15)
+                                                            ? 'text-success/60' : 'text-error/60'
+                                                        }`}>You</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="relative z-10 pt-3 border-t border-white/5">
+                                                {leftMetrics ? (
+                                                    Math.abs(leftMetrics.scalpelAngle - (expertMetrics?.leftHand?.angleTarget ?? expertMetrics?.angleTarget ?? 45)) <= (expertMetrics?.leftHand?.angleTolerance ?? expertMetrics?.angleTolerance ?? 15) ? (
+                                                        <div className="flex items-center justify-center gap-2 bg-success/10 py-1.5 rounded text-success border border-success/20">
+                                                            <span className="text-sm">✓</span>
+                                                            <span className="font-mono text-xs tracking-wider uppercase font-bold">On Target</span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center justify-center gap-2 bg-error/10 py-1.5 rounded text-error border border-error/20">
+                                                            <span className="text-sm">⚠</span>
+                                                            <span className="font-mono text-xs tracking-wider uppercase font-bold">Adjust Angle</span>
+                                                        </div>
+                                                    )
+                                                ) : (
+                                                    <div className="flex items-center justify-center py-1.5 text-text-dim">
+                                                        <span className="font-mono text-xs tracking-wider uppercase animate-pulse">Waiting for hand...</span>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                         <div className="bg-bg-tertiary p-2 border border-border-subtle rounded">
-                                            <span className="font-mono text-[0.55rem] text-text-dim uppercase block mb-0.5">Steadiness</span>
+                                            <span className="font-mono text-[0.55rem] text-text-dim uppercase block mb-0.5">
+                                                Steadiness
+                                                {expertMetrics?.leftHand?.steadinessTarget && (
+                                                    <span className="text-accent-rust ml-1">Target: {expertMetrics.leftHand.steadinessTarget}%</span>
+                                                )}
+                                            </span>
                                             <span className={`font-mono text-xl text-gray-900`}>
                                                 {leftMetrics ? `${leftMetrics.steadiness.toFixed(0)}%` : '--'}
                                             </span>
@@ -515,7 +579,12 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                                             </span>
                                         </div>
                                         <div className="bg-bg-tertiary p-2 border border-border-subtle rounded">
-                                            <span className="font-mono text-[0.55rem] text-text-dim uppercase block mb-0.5">Speed (in/s)</span>
+                                            <span className="font-mono text-[0.55rem] text-text-dim uppercase block mb-0.5">
+                                                Speed (in/s)
+                                                {expertMetrics?.leftHand?.speedOptimal && (
+                                                    <span className="text-accent-rust ml-1">Target: {expertMetrics.leftHand.speedOptimal}</span>
+                                                )}
+                                            </span>
                                             <span className="font-mono text-xl text-gray-900">
                                                 {leftMetrics ? leftMetrics.speed.toFixed(1) : '--'}
                                             </span>
@@ -560,14 +629,63 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                                 const rightMetrics = rightHand?.metrics;
                                 return (
                                     <>
-                                        <div className="bg-bg-tertiary p-2 border border-border-subtle rounded">
-                                            <span className="font-mono text-[0.55rem] text-text-dim uppercase block mb-0.5">Angle</span>
-                                            <span className="font-mono text-xl text-gray-900">
-                                                {rightMetrics ? `${rightMetrics.scalpelAngle.toFixed(1)}°` : '--'}
+                                        {/* Expert Target Card Style - Right Hand */}
+                                        <div className="bg-black/40 p-4 border border-white/10 rounded-lg mb-2 relative overflow-hidden group">
+                                            <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/10 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-110"></div>
+
+                                            <span className="font-mono text-[0.55rem] text-text-muted tracking-[0.2em] uppercase block mb-3 relative z-10">
+                                                Expert Target
                                             </span>
+
+                                            <div className="flex items-center justify-between mb-4 relative z-10 px-1">
+                                                <div className="flex flex-col items-center">
+                                                    <span className="text-4xl font-mono font-medium text-blue-400 tracking-tighter">
+                                                        {expertMetrics?.rightHand?.angleTarget ?? expertMetrics?.angleTarget ?? 45}°
+                                                    </span>
+                                                    <span className="text-[0.5rem] uppercase tracking-wider text-blue-400/60 mt-0.5">Expert</span>
+                                                </div>
+
+                                                <span className="text-xs font-mono text-text-dim/50 lowercase italic">vs</span>
+
+                                                <div className="flex flex-col items-center">
+                                                    <span className={`text-4xl font-mono font-bold tracking-tighter transition-colors duration-300 ${rightMetrics && Math.abs(rightMetrics.scalpelAngle - (expertMetrics?.rightHand?.angleTarget ?? expertMetrics?.angleTarget ?? 45)) <= (expertMetrics?.rightHand?.angleTolerance ?? expertMetrics?.angleTolerance ?? 15)
+                                                            ? 'text-success' : 'text-error'
+                                                        }`}>
+                                                        {rightMetrics ? `${rightMetrics.scalpelAngle.toFixed(0)}°` : '--'}
+                                                    </span>
+                                                    <span className={`text-[0.5rem] uppercase tracking-wider mt-0.5 ${rightMetrics && Math.abs(rightMetrics.scalpelAngle - (expertMetrics?.rightHand?.angleTarget ?? expertMetrics?.angleTarget ?? 45)) <= (expertMetrics?.rightHand?.angleTolerance ?? expertMetrics?.angleTolerance ?? 15)
+                                                            ? 'text-success/60' : 'text-error/60'
+                                                        }`}>You</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="relative z-10 pt-3 border-t border-white/5">
+                                                {rightMetrics ? (
+                                                    Math.abs(rightMetrics.scalpelAngle - (expertMetrics?.rightHand?.angleTarget ?? expertMetrics?.angleTarget ?? 45)) <= (expertMetrics?.rightHand?.angleTolerance ?? expertMetrics?.angleTolerance ?? 15) ? (
+                                                        <div className="flex items-center justify-center gap-2 bg-success/10 py-1.5 rounded text-success border border-success/20">
+                                                            <span className="text-sm">✓</span>
+                                                            <span className="font-mono text-xs tracking-wider uppercase font-bold">On Target</span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center justify-center gap-2 bg-error/10 py-1.5 rounded text-error border border-error/20">
+                                                            <span className="text-sm">⚠</span>
+                                                            <span className="font-mono text-xs tracking-wider uppercase font-bold">Adjust Angle</span>
+                                                        </div>
+                                                    )
+                                                ) : (
+                                                    <div className="flex items-center justify-center py-1.5 text-text-dim">
+                                                        <span className="font-mono text-xs tracking-wider uppercase animate-pulse">Waiting for hand...</span>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                         <div className="bg-bg-tertiary p-2 border border-border-subtle rounded">
-                                            <span className="font-mono text-[0.55rem] text-text-dim uppercase block mb-0.5">Steadiness</span>
+                                            <span className="font-mono text-[0.55rem] text-text-dim uppercase block mb-0.5">
+                                                Steadiness
+                                                {expertMetrics?.rightHand?.steadinessTarget && (
+                                                    <span className="text-accent-rust ml-1">Target: {expertMetrics.rightHand.steadinessTarget}%</span>
+                                                )}
+                                            </span>
                                             <span className={`font-mono text-xl text-gray-900`}>
                                                 {rightMetrics ? `${rightMetrics.steadiness.toFixed(0)}%` : '--'}
                                             </span>
@@ -579,7 +697,12 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                                             </span>
                                         </div>
                                         <div className="bg-bg-tertiary p-2 border border-border-subtle rounded">
-                                            <span className="font-mono text-[0.55rem] text-text-dim uppercase block mb-0.5">Speed (in/s)</span>
+                                            <span className="font-mono text-[0.55rem] text-text-dim uppercase block mb-0.5">
+                                                Speed (in/s)
+                                                {expertMetrics?.rightHand?.speedOptimal && (
+                                                    <span className="text-accent-rust ml-1">Target: {expertMetrics.rightHand.speedOptimal}</span>
+                                                )}
+                                            </span>
                                             <span className="font-mono text-xl text-gray-900">
                                                 {rightMetrics ? rightMetrics.speed.toFixed(1) : '--'}
                                             </span>
@@ -613,14 +736,13 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                         </div>
                     </div>
 
-                    {/* AI Coach Voice Feedback */}
+                    {/* AI Coach Voice Feedback - Merged Display */}
                     <VoiceFeedbackDisplay
-
-                        displayedText={voiceCoach.displayedText}
-                        currentMessage={voiceCoach.currentMessage}
-                        messageHistory={voiceCoach.messageHistory}
-                        stats={voiceCoach.stats}
-                        voiceEnabled={voiceCoach.voiceEnabled}
+                        displayedText={globalVoiceCoach.isSpeaking ? globalVoiceCoach.displayedText : (leftVoiceCoach.isSpeaking ? leftVoiceCoach.displayedText : rightVoiceCoach.displayedText)}
+                        currentMessage={globalVoiceCoach.currentMessage || leftVoiceCoach.currentMessage || rightVoiceCoach.currentMessage}
+                        messageHistory={[...globalVoiceCoach.messageHistory, ...leftVoiceCoach.messageHistory, ...rightVoiceCoach.messageHistory].sort((a, b) => b.timestamp - a.timestamp)}
+                        stats={rightVoiceCoach.stats}
+                        voiceEnabled={rightVoiceCoach.voiceEnabled}
                     />
                 </div>
             </main>
@@ -632,7 +754,9 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                 summary={sessionSummary}
                 onPlayAgain={() => {
                     setShowSummary(false);
-                    voiceCoach.resetStats();
+                    leftVoiceCoach.resetStats();
+                    rightVoiceCoach.resetStats();
+                    globalVoiceCoach.resetStats();
                     setSessionTime(0);
                 }}
             />

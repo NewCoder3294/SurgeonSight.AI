@@ -7,18 +7,31 @@
 
 import { useState, useCallback, useMemo } from 'react';
 
+// Separate metrics for a specific hand
+export interface HandMetrics {
+    angleTarget: number;
+    angleTolerance: number;
+    steadinessTarget: number;
+    speedOptimal: number;
+    speedTolerance: number;
+    expectedGripType: 'pencil' | 'power' | 'unknown';
+}
+
 export interface ExpertMetrics {
-    // Angle targets derived from analysis
+    // Legacy/Composite properties (can be derived or represent dominant hand)
     angleTarget: number;
     angleMin: number;
     angleMax: number;
     angleTolerance: number;
-
-    // Grip expectations
     expectedGripType: 'pencil' | 'power' | 'unknown';
-
-    // Steadiness baseline
     steadinessTarget: number;
+
+    // Separate hand metrics
+    leftHand?: HandMetrics;
+    rightHand?: HandMetrics;
+
+    // Contextual elements for AI coaching
+    techniqueContext?: string[];
 
     // Key technique notes from analysis
     techniqueNotes: string[];
@@ -42,6 +55,7 @@ const DEFAULT_METRICS: ExpertMetrics = {
     angleTolerance: 15,
     expectedGripType: 'pencil',
     steadinessTarget: 70,
+    techniqueContext: [],
     techniqueNotes: [
         'Maintain steady hand position',
         'Use pencil grip for precision',
@@ -115,6 +129,17 @@ export function useExpertBaseline() {
             notableMoments: Array<{ text: string; timestampMs: number; timestampSource?: 'code' | 'heuristic' }>;
             lowSignal?: boolean;
             scaffold?: string[];
+            expertStats?: {
+                angleTarget: number;
+                angleTolerance: number;
+                steadinessTarget: number;
+                expectationGripType: string;
+                speedOptimal: number;
+                speedTolerance: number;
+                contextElements?: string[];
+                leftHand?: any;
+                rightHand?: any;
+            };
         }
     ) => {
         // Parse notes to extract metrics
@@ -130,9 +155,44 @@ export function useExpertBaseline() {
             });
         }
 
+        // Merge explicit expert stats if available (preferred over parsing)
+        const explicitStats: Partial<ExpertMetrics> = {};
+        if (analysisResult?.expertStats) {
+            explicitStats.angleTarget = analysisResult.expertStats.angleTarget;
+            explicitStats.angleTolerance = analysisResult.expertStats.angleTolerance;
+            explicitStats.angleMin = analysisResult.expertStats.angleTarget - analysisResult.expertStats.angleTolerance;
+            explicitStats.angleMax = analysisResult.expertStats.angleTarget + analysisResult.expertStats.angleTolerance;
+            explicitStats.steadinessTarget = analysisResult.expertStats.steadinessTarget;
+            explicitStats.expectedGripType = analysisResult.expertStats.expectationGripType as any;
+            explicitStats.techniqueContext = analysisResult.expertStats.contextElements || [];
+
+            // Populate separate hand metrics if available
+            if (analysisResult.expertStats.leftHand) {
+                explicitStats.leftHand = {
+                    angleTarget: analysisResult.expertStats.leftHand.angleTarget,
+                    angleTolerance: analysisResult.expertStats.leftHand.angleTolerance,
+                    steadinessTarget: analysisResult.expertStats.leftHand.steadinessTarget,
+                    speedOptimal: analysisResult.expertStats.leftHand.speedOptimal,
+                    speedTolerance: analysisResult.expertStats.leftHand.speedTolerance,
+                    expectedGripType: analysisResult.expertStats.leftHand.expectationGripType as any
+                };
+            }
+            if (analysisResult.expertStats.rightHand) {
+                explicitStats.rightHand = {
+                    angleTarget: analysisResult.expertStats.rightHand.angleTarget,
+                    angleTolerance: analysisResult.expertStats.rightHand.angleTolerance,
+                    steadinessTarget: analysisResult.expertStats.rightHand.steadinessTarget,
+                    speedOptimal: analysisResult.expertStats.rightHand.speedOptimal,
+                    speedTolerance: analysisResult.expertStats.rightHand.speedTolerance,
+                    expectedGripType: analysisResult.expertStats.rightHand.expectationGripType as any
+                };
+            }
+        }
+
         const metrics: ExpertMetrics = {
             ...DEFAULT_METRICS,
             ...parsedMetrics,
+            ...explicitStats,
             notableMoments: moments
         };
 

@@ -55,102 +55,12 @@ export default function ExpertSummaryPanel({
 
   const hasLogs = logItems.length > 0;
 
-  // Define category keywords for scoring-based categorization
-  const categoryKeywords: Record<string, string[]> = {
-    'Instrument control': ['instrument', 'grip', 'handle', 'angle', 'control', 'forceps', 'scalpel', 'positioning'],
-    'Exposure & retraction': ['exposure', 'retraction', 'retractor', 'visualization', 'field', 'view'],
-    'Safety checks': ['safety', 'avoid', 'prevent', 'risk', 'caution', 'prevention'],
-    'Tissue handling': ['tissue', 'dissection', 'plane', 'manipulation', 'handling'],
-    'Hemostasis': ['hemostasis', 'bleeding', 'cautery', 'bipolar', 'hemostatic', 'vessel', 'clip'],
-    'Motion economy': ['motion', 'economy', 'efficiency', 'movement', 'trajectory', 'unnecessary']
-  };
-
-  // Category order preference (for tie-breaking)
-  const categoryOrder = ['Instrument control', 'Exposure & retraction', 'Safety checks', 'Tissue handling', 'Hemostasis', 'Motion economy'];
+  // Category configuration removed since rubric is hidden
 
   // Map log items to rubric categories - each item goes to ONE category (best match by scoring)
-  const rubricItems = useMemo(() => {
-    const categories: Record<string, string[]> = {
-      'Instrument control': [],
-      'Exposure & retraction': [],
-      'Hemostasis': [],
-      'Motion economy': [],
-      'Tissue handling': [],
-      'Safety checks': []
-    };
+  // Rubric item categorization logic removed since rubric UI is hidden
 
-    // Score-based categorization: assign each log to only ONE category (best match)
-    for (const log of logItems) {
-      const lower = log.toLowerCase();
-      let bestCategory = '';
-      let bestScore = 0;
-
-      // Score each category
-      for (const [category, keywords] of Object.entries(categoryKeywords)) {
-        const score = keywords.reduce((count, keyword) => {
-          return count + (lower.includes(keyword) ? 1 : 0);
-        }, 0);
-
-        // If score matches current best, prefer category with earlier order preference
-        if (score > bestScore || (score === bestScore && score > 0 && categoryOrder.indexOf(category) < categoryOrder.indexOf(bestCategory))) {
-          bestScore = score;
-          bestCategory = category;
-        }
-      }
-
-      // Assign to best category (or skip if no matches)
-      if (bestCategory && bestScore > 0) {
-        // Dedupe within category by string equality
-        if (!categories[bestCategory].includes(log)) {
-          categories[bestCategory].push(log);
-        }
-      }
-    }
-
-    return categories;
-  }, [logItems]);
-
-  // Adaptive rubric: determine sections and max items per section based on video length
-  const { rubricSections, maxItemsPerSection } = useMemo(() => {
-    // Infer video length from logItems count (fallback: <6 = short)
-    const isShortVideo = logItems.length < 6;
-    const isMediumVideo = logItems.length >= 6 && logItems.length < 15;
-
-    // Count items per category
-    const categoryCounts = Object.entries(rubricItems).map(([cat, items]) => ({
-      category: cat,
-      count: items.length
-    })).filter(entry => entry.count > 0);
-
-    // Sort by count (descending), then by order preference
-    categoryCounts.sort((a, b) => {
-      if (b.count !== a.count) return b.count - a.count;
-      return categoryOrder.indexOf(a.category) - categoryOrder.indexOf(b.category);
-    });
-
-    // Determine sections and limits based on video length
-    let sectionsToShow: string[];
-    let maxPerSection: number;
-
-    if (isShortVideo) {
-      // Short video: show top 2-3 categories, max 1 item each
-      sectionsToShow = categoryCounts.slice(0, 3).map(e => e.category);
-      maxPerSection = 1;
-    } else if (isMediumVideo) {
-      // Medium video (30-90s inferred): show top 3-4 categories, max 2 each
-      sectionsToShow = categoryCounts.slice(0, 4).map(e => e.category);
-      maxPerSection = 2;
-    } else {
-      // Long video: show up to 6 categories, max 2 each
-      sectionsToShow = categoryCounts.slice(0, 6).map(e => e.category);
-      maxPerSection = 2;
-    }
-
-    return {
-      rubricSections: sectionsToShow,
-      maxItemsPerSection: maxPerSection
-    };
-  }, [logItems, rubricItems]);
+  // Adaptive rubric calculation removed since rubric UI is hidden
 
   // Debug: Load checkOvershootConfig for console debugging
   useEffect(() => {
@@ -254,7 +164,8 @@ export default function ExpertSummaryPanel({
             )}
 
             {/* Observation Log - Below Notable Moments if logs exist */}
-            {hasLogs && (
+            {/* Observation Log - HIDDEN as per user request */}
+            {/* {hasLogs && (
               <div className="flex-shrink-0">
                 <h4 className="text-accent-rust text-xs uppercase tracking-wider mb-2 font-mono">
                   Observation Log
@@ -270,10 +181,11 @@ export default function ExpertSummaryPanel({
                   ))}
                 </div>
               </div>
-            )}
+            )} */}
 
             {/* Structured Rubric - Compact */}
-            <div className="flex-shrink-0">
+            {/* Structured Rubric - HIDDEN as per user request */}
+            {/* <div className="flex-shrink-0">
               <h4 className="text-accent-rust text-xs uppercase tracking-wider mb-3 font-mono">
                 Analysis Rubric
               </h4>
@@ -301,10 +213,11 @@ export default function ExpertSummaryPanel({
                 })}
 
               </div>
-            </div>
+            </div> */}
 
             {/* Notable Moments - Hide for short videos (<=20s) or when timestamps are unreliable */}
-            {(() => {
+            {/* Notable Moments - HIDDEN as per user request */}
+            {/* {(() => {
               // Infer video duration: short videos (<6 items) correspond to <=20s videos (4s per item)
               const isShortVideo = logItems.length < 6;
               
@@ -351,7 +264,7 @@ export default function ExpertSummaryPanel({
                   </ul>
                 </div>
               );
-            })()}
+            })()} */}
           </div>
         )}
       </div>

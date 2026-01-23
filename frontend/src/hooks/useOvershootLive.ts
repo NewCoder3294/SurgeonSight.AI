@@ -43,22 +43,23 @@ OUTPUT FORMAT (JSON only, no markdown):
 }
 
 OBSERVATION RULES:
-- ONE observation only (the most important feedback)
-- Must be actionable: what to change and why
-- Focus on: hand position, grip, angle, steadiness, instrument handling, motion quality
-- Be specific: "Lower wrist angle to 30 degrees for better control" not "Good technique"
-- No generic praise without specific feedback
-- If nothing notable, respond with: {"observation": "", "category": "general", "confidence": 0}
+- Focus strictly on SURGICAL ACCURACY and PRECISION.
+- Identify "Left Hand" or "Right Hand" specifically in your observation if applicable.
+- Comment on specific metrics:
+  * Hand Angles: "Rotate right wrist 15° clockwise..."
+  * Steadiness: "Stabilize left hand to eliminate micro-tremors..."
+  * Speed: "Slow down instrument insertion..."
+- Be extremely specific. Avoid generic advice like "improve control".
+- If technique is perfect, respond with empty observation.
 
 GOOD EXAMPLES:
-- "Stabilize your wrist to reduce the tremor visible in your cutting motion"
-- "Rotate the instrument 15 degrees clockwise for a cleaner approach angle"
-- "Slow down the motion to maintain precision through the curve"
+- "Left Hand: Rotate wrist 20 degrees supine to align the needle driver correctly."
+- "Right Hand: Reduce micro-tremors during the incision phase for cleaner tissue separation."
+- "Both Hands: Maintain independent motion; left hand is mirroring right hand unnecessarily."
 
-BAD EXAMPLES (avoid):
-- "Good technique" (not actionable)
-- "The hand is moving" (not helpful)
-- "Continue practicing" (not specific)`;
+BAD EXAMPLES:
+- "Good job."
+- "Keep your hands steady." (Too generic)`;
 
 // Parse Overshoot response into structured observation
 function parseObservationResponse(
