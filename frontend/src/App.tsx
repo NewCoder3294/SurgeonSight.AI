@@ -5,6 +5,9 @@ import CameraSetup from './components/CameraSetup';
 import CoachingSession from './components/CoachingSession';
 import TrainingSession from './pages/TrainingSession';
 
+// Log API configuration status on startup (dev only)
+import './utils/apiDiagnostics';
+
 function App() {
   return (
     <ThemeProvider>

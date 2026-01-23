@@ -717,7 +717,7 @@ export function thinObservationsDeterministic(observations: Observation[], durat
     
     // For each bucket, pick exactly ONE best observation by priority
     const selected: Observation[] = [];
-    for (const [bucketIndex, bucketObs] of Array.from(buckets.entries()).sort((a, b) => a[0] - b[0])) {
+    for (const [_bucketIndex, bucketObs] of Array.from(buckets.entries()).sort((a, b) => a[0] - b[0])) {
       if (selected.length >= maxCount) break;
       
       // Sort bucket by priority: category > confidence > text length > text alphabetically

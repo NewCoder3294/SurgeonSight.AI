@@ -323,7 +323,7 @@ export function useOvershootLive({
   const abortControllerRef = useRef<AbortController | null>(null);
   
   // For adaptive prompts, rotate through types
-  const promptRotationRef = useRef<PromptType[]>(['default', 'angles', 'steadiness', 'grip']);
+  const _promptRotationRef = useRef<PromptType[]>(['default', 'angles', 'steadiness', 'grip']);
   const currentPromptIndexRef = useRef(0);
   
   // Get current prompt based on settings
@@ -353,7 +353,6 @@ export function useOvershootLive({
 
     // Check configuration
     if (!isOvershootConfigured()) {
-      console.log('[OvershootLive] Skipping - API key not configured');
       return;
     }
 
@@ -372,22 +371,23 @@ export function useOvershootLive({
       const currentPrompt = getCurrentPrompt();
       console.log(`[OvershootLive] Using prompt type: ${adaptivePrompts ? 'adaptive' : promptType}`);
       
+      // Use SDK-recommended default parameters to avoid validation errors
+      // The API requires: clip_length_seconds >= delay_seconds, fps 1-120, sampling_ratio 0-1
       const vision = createOvershootVision({
         prompt: currentPrompt,
         file,
         processing: {
-          clip_length_seconds: 2,
-          delay_seconds: 0,
-          fps: 10,
-          sampling_ratio: 0.3,
+          clip_length_seconds: 1,
+          delay_seconds: 1,
+          fps: 15,
+          sampling_ratio: 0.1,
         },
         onResult: (text: string) => {
-          if (resultReceived) return; // Only process first result
+          if (resultReceived) return;
           resultReceived = true;
 
           const observation = parseObservationResponse(text, currentClipIndex);
           if (observation) {
-            console.log(`[OvershootLive] Observation: "${observation.text}" (${observation.category}, ${observation.confidence})`);
             setLastObservation(observation);
             setObservationCount((prev) => prev + 1);
             onObservationRef.current(observation);
@@ -417,7 +417,7 @@ export function useOvershootLive({
 
       await vision.start();
 
-      // Wait for analysis to complete (max 15 seconds for a short clip)
+      // Wait for analysis to complete
       await new Promise((resolve) => setTimeout(resolve, 10000));
 
       await vision.stop();

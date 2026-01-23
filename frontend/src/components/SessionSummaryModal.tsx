@@ -50,7 +50,7 @@ export default function SessionSummaryModal({
 
             // Generate confetti for high scores
             if (summary && summary.score >= 80) {
-                const newConfetti = Array.from({ length: 50 }, (_, i) => ({
+                const newConfetti = Array.from({ length: 50 }, () => ({
                     x: Math.random() * 100,
                     y: -10 - Math.random() * 20,
                     color: ['#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4'][Math.floor(Math.random() * 5)],

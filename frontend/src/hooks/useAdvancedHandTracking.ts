@@ -18,7 +18,7 @@ import { classifyGrip, type GripClassification, type GripType } from '../utils/a
 
 // MediaPipe landmark indices
 const WRIST = 0;
-const INDEX_TIP = 8;
+const _INDEX_TIP = 8;  // Reserved for future use
 const MIDDLE_TIP = 12;
 
 export interface HandLandmark {
@@ -278,9 +278,9 @@ export function useAdvancedHandTracking({
           },
           runningMode: 'VIDEO',
           numHands: 2,
-          minHandDetectionConfidence,
+          minHandDetectionConfidence: minDetectionConfidence,
           minHandPresenceConfidence: 0.5,
-          minTrackingConfidence,
+          minTrackingConfidence: minTrackingConfidence,
         });
         
         handLandmarkerRef.current = handLandmarker;

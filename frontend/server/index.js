@@ -14,13 +14,49 @@ config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const NODE_ENV = process.env.NODE_ENV || 'development';
+
+// CORS configuration
+const defaultOrigins = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:5174',
+    'http://127.0.0.1:5174',
+    'http://localhost:3000',
+];
+
+// Parse CORS_ORIGINS from environment (comma-separated)
+const envOrigins = process.env.CORS_ORIGINS 
+    ? process.env.CORS_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
+    : [];
+
+const allowedOrigins = NODE_ENV === 'production' && envOrigins.length > 0
+    ? envOrigins
+    : [...defaultOrigins, ...envOrigins];
 
 // Middleware
 app.use(cors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    origin: (origin, callback) => {
+        // Allow requests with no origin (mobile apps, curl, etc.)
+        if (!origin) return callback(null, true);
+        
+        if (allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else if (NODE_ENV !== 'production') {
+            // In development, allow all origins
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true
 }));
 app.use(express.json());
+
+// Trust proxy for production (behind load balancer)
+if (NODE_ENV === 'production') {
+    app.set('trust proxy', 1);
+}
 
 // In-memory session storage (for demo purposes)
 const sessions = new Map();
@@ -220,14 +256,19 @@ async function sendFeedback(ws, session, type, gripState) {
 // Start Server
 // ===================================
 
-server.listen(PORT, () => {
-    console.log(`
+server.listen(PORT, '0.0.0.0', () => {
+    if (NODE_ENV !== 'production') {
+        console.log(`
 ╔═══════════════════════════════════════════════════════════╗
 ║           SurgeonSight AI Backend Server                   ║
 ╠═══════════════════════════════════════════════════════════╣
+║  Environment: ${NODE_ENV.padEnd(42)}║
 ║  REST API:    http://localhost:${PORT}/api                   ║
 ║  WebSocket:   ws://localhost:${PORT}/ws                      ║
 ║  Health:      http://localhost:${PORT}/api/health            ║
 ╚═══════════════════════════════════════════════════════════╝
-    `);
+        `);
+    } else {
+        console.log(`[SurgeonSight] Server running on port ${PORT} (${NODE_ENV})`);
+    }
 });

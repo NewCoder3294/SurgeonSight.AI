@@ -14,7 +14,6 @@ import {
   isElevenLabsConfigured,
   VOICE_IDS,
   type VoiceId,
-  type ElevenLabsConfig,
   type SpeakOptions,
 } from '../services/elevenLabs';
 

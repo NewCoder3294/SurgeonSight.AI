@@ -165,7 +165,7 @@ function distance3D(a: HandLandmark, b: HandLandmark): number {
 /**
  * Calculate 2D distance (ignoring depth)
  */
-function distance2D(a: HandLandmark, b: HandLandmark): number {
+function _distance2D(a: HandLandmark, b: HandLandmark): number {
   return Math.sqrt(
     (b.x - a.x) ** 2 +
     (b.y - a.y) ** 2
@@ -286,7 +286,7 @@ function extractFeatures(landmarks: HandLandmark[]): GripFeatures {
   const thumbTip = landmarks[LANDMARKS.THUMB_TIP];
   const indexTip = landmarks[LANDMARKS.INDEX_TIP];
   const middleTip = landmarks[LANDMARKS.MIDDLE_TIP];
-  const ringTip = landmarks[LANDMARKS.RING_TIP];
+  const _ringTip = landmarks[LANDMARKS.RING_TIP];  // Reserved for extended grip analysis
   const pinkyTip = landmarks[LANDMARKS.PINKY_TIP];
   const indexMcp = landmarks[LANDMARKS.INDEX_MCP];
   const pinkyMcp = landmarks[LANDMARKS.PINKY_MCP];

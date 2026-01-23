@@ -18,8 +18,7 @@ let consecutiveFailures = 0;
 const MAX_FAILURES = 5;  // Increased tolerance after SDK update
 let circuitBreakerTripped = false;
 
-// Log SDK version on load
-console.log('[Overshoot] SDK loaded - checking API compatibility...');
+// SDK initialization (minimal logging in production)
 
 export interface OvershootConfig {
   prompt: string;

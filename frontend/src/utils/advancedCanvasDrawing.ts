@@ -660,7 +660,7 @@ export function drawMetricsHUD(
  */
 export function drawAllOverlays(
   ctx: CanvasRenderingContext2D,
-  landmarks: HandLandmark[],
+  _landmarks: HandLandmark[],  // Raw landmarks (reserved for future use)
   filteredLandmarks: HandLandmark[],
   metrics: {
     angles: SurgicalAngleMetrics;

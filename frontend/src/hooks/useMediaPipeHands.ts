@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { OneEuroFilter, AdaptiveKalmanFilter } from '../utils/kalmanFilter';
+import { OneEuroFilter } from '../utils/kalmanFilter';
 import { calculateSurgicalAngles } from '../utils/surgicalAngles';
 import { TremorAnalyzer } from '../utils/tremorAnalysis';
 import { classifyGrip as advancedClassifyGrip } from '../utils/advancedGripClassifier';

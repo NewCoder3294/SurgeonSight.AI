@@ -33,7 +33,7 @@ const VideoFeed = forwardRef(function VideoFeed({
     showSkeleton = true,
     showMetrics = true,
     metrics = null,
-    expertAngleTarget,
+    expertAngleTarget: _expertAngleTarget,
     detectedTool
 }: VideoFeedProps, ref: any) {
     const videoRef = useRef<any>(null);
@@ -71,20 +71,21 @@ const VideoFeed = forwardRef(function VideoFeed({
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         // Draw each hand
+        // Canvas has CSS -scale-x-100 to match video mirror, so draw at original positions
         hands.forEach((hand: any) => {
             const landmarks = hand.landmarks || hand;
             const handMetrics = hand.metrics || metrics;
 
             if (showSkeleton && landmarks.length > 0) {
-                drawHandSkeleton(ctx, landmarks, canvas.width, canvas.height, true);
+                drawHandSkeleton(ctx, landmarks, canvas.width, canvas.height, false);
             }
             if (showLandmarks && landmarks.length > 0) {
-                drawHandLandmarks(ctx, landmarks, canvas.width, canvas.height, true);
+                drawHandLandmarks(ctx, landmarks, canvas.width, canvas.height, false);
             }
             if (showMetrics && handMetrics && landmarks.length > 0) {
-                drawAngleArc(ctx, landmarks, handMetrics.scalpelAngle, canvas.width, canvas.height, true);
-                drawPinchAngle(ctx, landmarks, handMetrics.pinchAngle, canvas.width, canvas.height, true);
-                drawFingerBend(ctx, landmarks, handMetrics.fingerBend, canvas.width, canvas.height, true);
+                drawAngleArc(ctx, landmarks, handMetrics.scalpelAngle, canvas.width, canvas.height, false);
+                drawPinchAngle(ctx, landmarks, handMetrics.pinchAngle, canvas.width, canvas.height, false);
+                drawFingerBend(ctx, landmarks, handMetrics.fingerBend, canvas.width, canvas.height, false);
             }
         });
     }, [hands, showLandmarks, showSkeleton, showMetrics, metrics]);
@@ -128,10 +129,10 @@ const VideoFeed = forwardRef(function VideoFeed({
                 className="w-full h-full object-cover -scale-x-100"
             />
 
-            {/* Canvas for hand landmark overlay */}
+            {/* Canvas for hand landmark overlay - mirrored to match video */}
             <canvas
                 ref={canvasRef}
-                className="absolute top-0 left-0 w-full h-full pointer-events-none"
+                className="absolute top-0 left-0 w-full h-full pointer-events-none -scale-x-100"
             />
 
             {/* Overlay effects */}

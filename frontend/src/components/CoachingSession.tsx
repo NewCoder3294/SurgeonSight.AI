@@ -1,7 +1,4 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import CornerBrackets from './CornerBrackets';
-import FeedbackDisplay from './FeedbackDisplay';
 import VideoFeed from './VideoFeed';
 import ThemeToggle from './ThemeToggle';
 import Hand3DVisualization from './Hand3DVisualization';
@@ -19,6 +16,7 @@ import type { ExpertMetrics } from '../hooks/useExpertBaseline';
 import { useWebcamRecorder } from '../hooks/useWebcamRecorder';
 import { useOvershootLive, type OvershootObservation } from '../hooks/useOvershootLive';
 import { isOvershootConfigured } from '../services/overshoot';
+import OvershootInsightsPanel from './OvershootInsightsPanel';
 
 // Demo feedback messages (fallback when backend not available)
 const DEMO_FEEDBACK = [
@@ -40,14 +38,13 @@ interface CoachingSessionProps {
 }
 
 export default function CoachingSession({ embedded = false, expertMetrics }: CoachingSessionProps) {
-    const navigate = useNavigate();
     const videoFeedRef = useRef(null);
 
     // Session state
     const [sessionId, setSessionId] = useState(null);
     const [sessionTime, setSessionTime] = useState(0);
     const [isAnalyzing, setIsAnalyzing] = useState(true);
-    const [currentFeedback, setCurrentFeedback] = useState<any>(null);
+    const [_currentFeedback, setCurrentFeedback] = useState<any>(null);
     const [feedbackHistory, setFeedbackHistory] = useState<any[]>([]);
 
     const [backendConnected, setBackendConnected] = useState(false);
@@ -58,7 +55,7 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
     const [sessionSummary, setSessionSummary] = useState<any>(null);
 
     // AI Analysis (Overshoot) state
-    const [aiEnabled, setAiEnabled] = useState(true);
+    const [aiEnabled] = useState(true);
     const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
 
     // Demo mode state
@@ -76,7 +73,7 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
     const lastFrameTimeRef = useRef<number>(0);
 
     // Voice feedback hook (legacy - keep for fallback)
-    const { playFeedback, speakWithWebSpeech, isSpeaking } = useVoiceFeedback();
+    const { playFeedback, speakWithWebSpeech, isSpeaking: _isSpeaking } = useVoiceFeedback();
 
     // SINGLE voice coach for ALL hands - prevents overlapping speech
     // Uses turn-taking logic to alternate between left/right hands
@@ -100,14 +97,19 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
         elevenLabsSimilarity: 0.85,
     });
 
-    // Handle Overshoot AI observation
+    // Handle Overshoot AI observation - use ref to avoid dependency on voiceCoach
+    const globalVoiceCoachRef = useRef(globalVoiceCoach);
+    useEffect(() => {
+        globalVoiceCoachRef.current = globalVoiceCoach;
+    }, [globalVoiceCoach]);
+
     const handleAiObservation = useCallback((observation: OvershootObservation) => {
         console.log('[CoachingSession] AI observation received:', observation.text);
 
         // Feed to voice coach with appropriate priority
         const priority = observation.category === 'safety' ? 'high' : 'normal';
-        globalVoiceCoach.speak(observation.text, 'ai_observation', priority);
-    }, [globalVoiceCoach]);
+        globalVoiceCoachRef.current.speak(observation.text, 'ai_observation', priority);
+    }, []); // No dependencies - uses ref
 
     // Overshoot live analysis hook
     const overshootLive = useOvershootLive({
@@ -119,13 +121,14 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
     });
 
     // Webcam recorder hook - records clips and sends to Overshoot
+    const recorderEnabled = aiEnabled && overshootLive.isConfigured && !overshootLive.creditsExhausted;
+    
     const _webcamRecorder = useWebcamRecorder({
         stream: mediaStream,
         clipDurationMs: 5000,  // 5-second clips
         intervalMs: 12000,     // Every 12 seconds
-        enabled: aiEnabled && overshootLive.isConfigured && !overshootLive.creditsExhausted,
+        enabled: recorderEnabled,
         onClipReady: (file) => {
-            console.log(`[CoachingSession] Clip ready (${(file.size / 1024).toFixed(1)}KB), sending to Overshoot...`);
             overshootLive.analyzeClip(file);
         },
     });
@@ -191,7 +194,7 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                     
                     // Determine which hand to coach next (alternating turn-taking)
                     let handToCoach: HandData | undefined;
-                    let handLabel: 'Left Hand' | 'Right Hand';
+                    let handLabel: 'Left Hand' | 'Right Hand' = 'Right Hand';  // Default
                     let handMetrics: any;
                     
                     // If only one hand, coach that one
@@ -267,18 +270,39 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
     });
 
     // Get video element and stream reference when component mounts
+    // Use an interval to poll for the video element since refs don't trigger effects
     useEffect(() => {
-        if (videoFeedRef.current) {
-            const videoEl = (videoFeedRef.current as any)?.getVideoElement?.();
-            if (videoEl) {
-                setVideoElement(videoEl);
-                // Get the MediaStream for Overshoot recording
-                if (videoEl.srcObject instanceof MediaStream) {
-                    setMediaStream(videoEl.srcObject);
+        let attempts = 0;
+        const maxAttempts = 20; // Try for ~2 seconds
+        
+        const checkVideoElement = () => {
+            if (videoFeedRef.current) {
+                const videoEl = (videoFeedRef.current as any)?.getVideoElement?.();
+                if (videoEl) {
+                    setVideoElement(videoEl);
+                    // Get the MediaStream for Overshoot recording
+                    if (videoEl.srcObject instanceof MediaStream) {
+                        setMediaStream(videoEl.srcObject);
+                    }
+                    return true;
                 }
             }
-        }
-    }, [videoFeedRef.current]);
+            return false;
+        };
+        
+        // Check immediately
+        if (checkVideoElement()) return;
+        
+        // Poll for video element
+        const intervalId = setInterval(() => {
+            attempts++;
+            if (checkVideoElement() || attempts >= maxAttempts) {
+                clearInterval(intervalId);
+            }
+        }, 100);
+        
+        return () => clearInterval(intervalId);
+    }, []); // Run once on mount
 
     // Initialize session
     useEffect(() => {
@@ -532,7 +556,7 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                 {/* Top row: Left Hand Metrics | Video Feed | Right Hand Metrics */}
                 <div className="flex gap-4 max-[1000px]:flex-col">
                     {/* Left Hand Metrics */}
-                    <div className="w-64 shrink-0 bg-bg-secondary border border-border-subtle rounded-lg overflow-hidden max-[1000px]:w-full max-[1000px]:order-2">
+                    <div className="w-64 shrink-0 bg-bg-secondary border border-border-subtle overflow-hidden max-[1000px]:w-full max-[1000px]:order-2">
                         <h3 className="text-xs tracking-widest px-4 pt-3 pb-2 border-b border-border-subtle text-text-muted uppercase">
                             Left Hand
                         </h3>
@@ -543,10 +567,10 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                                 return (
                                     <>
                                         {/* Expert Target Card Style - Left Hand */}
-                                        <div className="bg-black/40 p-4 border border-white/10 rounded-lg mb-2 relative overflow-hidden group">
-                                            <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/10 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-110"></div>
+                                        <div className="bg-bg-tertiary p-4 border border-border-subtle mb-2 relative overflow-hidden group">
+                                            <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/10 -mr-8 -mt-8 transition-transform group-hover:scale-110"></div>
 
-                                            <span className="font-mono text-[0.55rem] text-text-muted tracking-[0.2em] uppercase block mb-3 relative z-10">
+                                            <span className="font-mono text-[0.55rem] text-text-cream tracking-[0.2em] uppercase block mb-3 relative z-10">
                                                 Expert Target
                                             </span>
 
@@ -575,12 +599,12 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                                             <div className="relative z-10 pt-3 border-t border-white/5">
                                                 {leftMetrics ? (
                                                     Math.abs(leftMetrics.scalpelAngle - (expertMetrics?.leftHand?.angleTarget ?? expertMetrics?.angleTarget ?? 45)) <= (expertMetrics?.leftHand?.angleTolerance ?? expertMetrics?.angleTolerance ?? 15) ? (
-                                                        <div className="flex items-center justify-center gap-2 bg-success/10 py-1.5 rounded text-success border border-success/20">
+                                                        <div className="flex items-center justify-center gap-2 bg-success/10 py-1.5 text-success border border-success/20">
                                                             <span className="text-sm">✓</span>
                                                             <span className="font-mono text-xs tracking-wider uppercase font-bold">On Target</span>
                                                         </div>
                                                     ) : (
-                                                        <div className="flex items-center justify-center gap-2 bg-error/10 py-1.5 rounded text-error border border-error/20">
+                                                        <div className="flex items-center justify-center gap-2 bg-error/10 py-1.5 text-error border border-error/20">
                                                             <span className="text-sm">⚠</span>
                                                             <span className="font-mono text-xs tracking-wider uppercase font-bold">Adjust Angle</span>
                                                         </div>
@@ -592,7 +616,7 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                                                 )}
                                             </div>
                                         </div>
-                                        <div className="bg-bg-tertiary p-2 border border-border-subtle rounded">
+                                        <div className="bg-bg-tertiary p-2 border border-border-subtle">
                                             <span className="font-mono text-[0.55rem] text-text-dim uppercase block mb-0.5">
                                                 Steadiness
                                                 {expertMetrics?.leftHand?.steadinessTarget && (
@@ -603,13 +627,13 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                                                 {leftMetrics ? `${leftMetrics.steadiness.toFixed(0)}%` : '--'}
                                             </span>
                                         </div>
-                                        <div className="bg-bg-tertiary p-2 border border-border-subtle rounded">
+                                        <div className="bg-bg-tertiary p-2 border border-border-subtle">
                                             <span className="font-mono text-[0.55rem] text-text-dim uppercase block mb-0.5">Grip Type</span>
                                             <span className={`font-mono text-sm uppercase text-gray-900`}>
                                                 {leftMetrics?.gripType || '--'}
                                             </span>
                                         </div>
-                                        <div className="bg-bg-tertiary p-2 border border-border-subtle rounded">
+                                        <div className="bg-bg-tertiary p-2 border border-border-subtle">
                                             <span className="font-mono text-[0.55rem] text-text-dim uppercase block mb-0.5">
                                                 Speed (in/s)
                                                 {expertMetrics?.leftHand?.speedOptimal && (
@@ -632,16 +656,13 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                     </div>
 
                     {/* Center: Video Feed */}
-                    <div className="flex-1 relative flex flex-col bg-black/20 rounded-lg overflow-hidden border border-white/5 aspect-video max-h-[55vh] max-[1000px]:order-1">
-                        <CornerBrackets size="xl" animated>
-                            <VideoFeed
-                                ref={videoFeedRef}
-                                hands={detectedHands}
-                                showMetrics={true}
-                                metrics={currentMetrics}
-                                expertAngleTarget={expertMetrics?.angleTarget}
-                            />
-                        </CornerBrackets>
+                    <div className="flex-1 relative flex flex-col overflow-hidden aspect-video max-h-[55vh] max-[1000px]:order-1">
+                        <VideoFeed
+                            ref={videoFeedRef}
+                            hands={detectedHands}
+                            showMetrics={true}
+                            metrics={currentMetrics}
+                        />
                         {mediaPipeLoading && (
                             <div className="absolute inset-0 flex items-center justify-center bg-black/50">
                                 <span className="font-mono text-sm text-accent-rust animate-pulse">Loading MediaPipe...</span>
@@ -650,7 +671,7 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                     </div>
 
                     {/* Right Hand Metrics */}
-                    <div className="w-64 shrink-0 bg-bg-secondary border border-border-subtle rounded-lg overflow-hidden max-[1000px]:w-full max-[1000px]:order-3">
+                    <div className="w-64 shrink-0 bg-bg-secondary border border-border-subtle overflow-hidden max-[1000px]:w-full max-[1000px]:order-3">
                         <h3 className="text-xs tracking-widest px-4 pt-3 pb-2 border-b border-border-subtle text-text-muted uppercase">
                             Right Hand
                         </h3>
@@ -661,10 +682,10 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                                 return (
                                     <>
                                         {/* Expert Target Card Style - Right Hand */}
-                                        <div className="bg-black/40 p-4 border border-white/10 rounded-lg mb-2 relative overflow-hidden group">
-                                            <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/10 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-110"></div>
+                                        <div className="bg-bg-tertiary p-4 border border-border-subtle mb-2 relative overflow-hidden group">
+                                            <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/10 -mr-8 -mt-8 transition-transform group-hover:scale-110"></div>
 
-                                            <span className="font-mono text-[0.55rem] text-text-muted tracking-[0.2em] uppercase block mb-3 relative z-10">
+                                            <span className="font-mono text-[0.55rem] text-text-cream tracking-[0.2em] uppercase block mb-3 relative z-10">
                                                 Expert Target
                                             </span>
 
@@ -693,12 +714,12 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                                             <div className="relative z-10 pt-3 border-t border-white/5">
                                                 {rightMetrics ? (
                                                     Math.abs(rightMetrics.scalpelAngle - (expertMetrics?.rightHand?.angleTarget ?? expertMetrics?.angleTarget ?? 45)) <= (expertMetrics?.rightHand?.angleTolerance ?? expertMetrics?.angleTolerance ?? 15) ? (
-                                                        <div className="flex items-center justify-center gap-2 bg-success/10 py-1.5 rounded text-success border border-success/20">
+                                                        <div className="flex items-center justify-center gap-2 bg-success/10 py-1.5 text-success border border-success/20">
                                                             <span className="text-sm">✓</span>
                                                             <span className="font-mono text-xs tracking-wider uppercase font-bold">On Target</span>
                                                         </div>
                                                     ) : (
-                                                        <div className="flex items-center justify-center gap-2 bg-error/10 py-1.5 rounded text-error border border-error/20">
+                                                        <div className="flex items-center justify-center gap-2 bg-error/10 py-1.5 text-error border border-error/20">
                                                             <span className="text-sm">⚠</span>
                                                             <span className="font-mono text-xs tracking-wider uppercase font-bold">Adjust Angle</span>
                                                         </div>
@@ -710,7 +731,7 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                                                 )}
                                             </div>
                                         </div>
-                                        <div className="bg-bg-tertiary p-2 border border-border-subtle rounded">
+                                        <div className="bg-bg-tertiary p-2 border border-border-subtle">
                                             <span className="font-mono text-[0.55rem] text-text-dim uppercase block mb-0.5">
                                                 Steadiness
                                                 {expertMetrics?.rightHand?.steadinessTarget && (
@@ -721,13 +742,13 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                                                 {rightMetrics ? `${rightMetrics.steadiness.toFixed(0)}%` : '--'}
                                             </span>
                                         </div>
-                                        <div className="bg-bg-tertiary p-2 border border-border-subtle rounded">
+                                        <div className="bg-bg-tertiary p-2 border border-border-subtle">
                                             <span className="font-mono text-[0.55rem] text-text-dim uppercase block mb-0.5">Grip Type</span>
                                             <span className={`font-mono text-sm uppercase text-gray-900`}>
                                                 {rightMetrics?.gripType || '--'}
                                             </span>
                                         </div>
-                                        <div className="bg-bg-tertiary p-2 border border-border-subtle rounded">
+                                        <div className="bg-bg-tertiary p-2 border border-border-subtle">
                                             <span className="font-mono text-[0.55rem] text-text-dim uppercase block mb-0.5">
                                                 Speed (in/s)
                                                 {expertMetrics?.rightHand?.speedOptimal && (
@@ -750,10 +771,21 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                     </div>
                 </div>
 
-                {/* Bottom row: 3D Hand View | AI Coach - Two columns */}
-                <div className="grid grid-cols-2 gap-4 max-[1000px]:grid-cols-1">
+                {/* Bottom row: Overshoot AI | 3D Hand View | Voice Coach - Three columns */}
+                <div className="grid grid-cols-3 gap-4 max-[1200px]:grid-cols-2 max-[800px]:grid-cols-1">
+                    {/* Overshoot AI Insights Panel - PROMINENTLY FEATURED */}
+                    <OvershootInsightsPanel
+                        isConfigured={overshootLive.isConfigured}
+                        isAnalyzing={overshootLive.isAnalyzing}
+                        creditsExhausted={overshootLive.creditsExhausted}
+                        lastObservation={overshootLive.lastObservation}
+                        observationCount={overshootLive.observationCount}
+                        error={overshootLive.error}
+                        demoMode={false} // Use real API only
+                    />
+
                     {/* 3D Hand Visualization */}
-                    <div className="bg-bg-secondary border border-border-subtle rounded-lg overflow-hidden">
+                    <div className="bg-bg-secondary border border-border-subtle overflow-hidden">
                         <h3 className="text-xs tracking-widest px-4 pt-3 pb-2 border-b border-border-subtle text-text-muted uppercase">3D Hand View</h3>
                         <div className="p-4">
                             <Hand3DVisualization

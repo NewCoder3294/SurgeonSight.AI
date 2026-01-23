@@ -196,7 +196,7 @@ export async function textToSpeechStream(
  */
 export class ElevenLabsSpeaker {
   private config: ElevenLabsConfig;
-  private audioContext: AudioContext | null = null;
+  private _audioContext: AudioContext | null = null;  // Reserved for future audio processing
   private currentAudio: HTMLAudioElement | null = null;
   private queue: Array<{ text: string; options: SpeakOptions }> = [];
   private isProcessing = false;

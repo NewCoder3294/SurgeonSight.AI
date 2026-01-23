@@ -1,0 +1,25 @@
+# Development files
+.env
+.env.local
+*.log
+
+# Server directory (separate deployment)
+server/
+
+# Test files
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+
+# Documentation (not needed in build)
+*.md
+!README.md
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db

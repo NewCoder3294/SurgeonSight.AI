@@ -28,6 +28,7 @@ export default function TrainingSession() {
     };
   } | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [livePracticeUnlocked, setLivePracticeUnlocked] = useState(false);
 
   // Refs for scrolling
   const videoPanelRef = useRef<HTMLDivElement>(null);
@@ -86,11 +87,15 @@ export default function TrainingSession() {
     }
   };
 
-  // Scroll to Live Practice section
+  // Scroll to Live Practice section and unlock it
   const scrollToLivePractice = () => {
-    if (livePracticeSectionRef.current) {
-      livePracticeSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    setLivePracticeUnlocked(true);
+    // Small delay to allow blur transition to start before scrolling
+    setTimeout(() => {
+      if (livePracticeSectionRef.current) {
+        livePracticeSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
   };
 
   return (
@@ -109,8 +114,18 @@ export default function TrainingSession() {
       <main className="max-w-[1400px] mx-auto p-8">
         <section className={analysisComplete ? 'completed' : ''}>
           <div className="flex items-center gap-4 mb-6">
-            <div className="w-1.5 h-8 bg-accent-rust"></div>
+            <div className={`w-1.5 h-8 transition-colors duration-500 ${analysisComplete ? 'bg-success' : 'bg-accent-rust'}`}></div>
             <h2 ref={analysisTitleRef} className="text-2xl tracking-wider text-text-cream uppercase m-0">01. Expert Video Analysis</h2>
+            {analysisComplete && (
+              <span className="text-xs font-mono text-success uppercase tracking-wider flex items-center gap-1">
+                <span>✓</span> Complete
+              </span>
+            )}
+            {isAnalyzing && (
+              <span className="text-xs font-mono text-accent-rust uppercase tracking-wider flex items-center gap-1 animate-pulse">
+                <span className="w-2 h-2 rounded-full bg-accent-rust"></span> Analyzing
+              </span>
+            )}
           </div>
 
           <div ref={videoPanelRef} className="grid grid-cols-2 gap-6 mt-6">
@@ -174,37 +189,67 @@ export default function TrainingSession() {
           )}
         </section>
 
-        <div className="w-0.5 h-32 bg-gradient-to-b from-accent-rust to-transparent mx-auto opacity-30"></div>
+        {/* Connector line - only visible when analysis complete */}
+        <div className={`w-0.5 h-48 mx-auto my-12 transition-all duration-500 ${
+          analysisComplete 
+            ? 'bg-gradient-to-b from-accent-rust to-accent-rust/30 opacity-100' 
+            : 'bg-gradient-to-b from-border-subtle to-transparent opacity-30'
+        }`}></div>
 
         <section
           ref={livePracticeSectionRef}
-          className="relative mt-16 transition-all duration-500"
+          className={`relative mt-24 transition-all duration-700 ${
+            !livePracticeUnlocked ? 'opacity-40' : 'opacity-100'
+          }`}
         >
-          <div className="flex items-center gap-4 mb-6">
-            <div className="w-1.5 h-8 bg-accent-rust"></div>
-            <h2 className="text-2xl tracking-wider text-text-cream uppercase m-0">02. Live Practice Session</h2>
-          </div>
+          {/* Lock overlay when not unlocked */}
+          {!livePracticeUnlocked && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
+              <div className="text-center">
+                <div className="w-16 h-16 mx-auto mb-4 border-2 border-border-subtle flex items-center justify-center bg-bg-secondary/80 backdrop-blur-sm">
+                  <svg className="w-8 h-8 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                </div>
+                <p className="font-mono text-sm text-text-muted uppercase tracking-wider">
+                  Complete Step 1 to unlock
+                </p>
+              </div>
+            </div>
+          )}
 
-          <div className="relative min-h-[400px] transition-all duration-500 mt-6">
-            <CoachingSession
-              embedded={true}
-              expertMetrics={analysisResult?.expertStats ? {
-                angleTarget: analysisResult.expertStats.angleTarget,
-                angleTolerance: analysisResult.expertStats.angleTolerance,
-                angleMin: analysisResult.expertStats.angleTarget - analysisResult.expertStats.angleTolerance,
-                angleMax: analysisResult.expertStats.angleTarget + analysisResult.expertStats.angleTolerance,
-                steadinessTarget: analysisResult.expertStats.steadinessTarget,
-                expectedGripType: (analysisResult.expertStats.expectationGripType as any) || 'unknown',
-                leftHand: analysisResult.expertStats.leftHand,
-                rightHand: analysisResult.expertStats.rightHand,
-                techniqueContext: analysisResult.expertStats.contextElements,
-                techniqueNotes: analysisResult.keyConcepts,
-                notableMoments: analysisResult.notableMoments.map(m => ({
-                  time: m.timestampMs / 1000,
-                  note: m.text
-                }))
-              } : undefined}
-            />
+          <div className={`transition-all duration-700 ${!livePracticeUnlocked ? 'blur-sm pointer-events-none select-none' : 'blur-0'}`}>
+            <div className="flex items-center gap-4 mb-6">
+              <div className={`w-1.5 h-8 transition-colors duration-500 ${livePracticeUnlocked ? 'bg-accent-rust' : 'bg-border-subtle'}`}></div>
+              <h2 className={`text-2xl tracking-wider uppercase m-0 transition-colors duration-500 ${livePracticeUnlocked ? 'text-text-cream' : 'text-text-muted'}`}>
+                02. Live Practice Session
+              </h2>
+              {livePracticeUnlocked && (
+                <span className="text-xs font-mono text-success uppercase tracking-wider animate-pulse">● Active</span>
+              )}
+            </div>
+
+            <div className="relative min-h-[400px] transition-all duration-500 mt-6">
+              <CoachingSession
+                embedded={true}
+                expertMetrics={analysisResult?.expertStats ? {
+                  angleTarget: analysisResult.expertStats.angleTarget,
+                  angleTolerance: analysisResult.expertStats.angleTolerance,
+                  angleMin: analysisResult.expertStats.angleTarget - analysisResult.expertStats.angleTolerance,
+                  angleMax: analysisResult.expertStats.angleTarget + analysisResult.expertStats.angleTolerance,
+                  steadinessTarget: analysisResult.expertStats.steadinessTarget,
+                  expectedGripType: (analysisResult.expertStats.expectationGripType as any) || 'unknown',
+                  leftHand: analysisResult.expertStats.leftHand,
+                  rightHand: analysisResult.expertStats.rightHand,
+                  techniqueContext: analysisResult.expertStats.contextElements,
+                  techniqueNotes: analysisResult.keyConcepts,
+                  notableMoments: analysisResult.notableMoments.map(m => ({
+                    time: m.timestampMs / 1000,
+                    note: m.text
+                  }))
+                } : undefined}
+              />
+            </div>
           </div>
         </section>
       </main>

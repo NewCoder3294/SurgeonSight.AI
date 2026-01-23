@@ -166,8 +166,9 @@ function angle2DFromHorizontal(from: HandLandmark, to: HandLandmark): number {
 
 /**
  * Calculate 3D angle from horizontal plane
+ * @internal Reserved for future 3D angle calculations
  */
-function angle3DFromHorizontal(from: HandLandmark, to: HandLandmark): number {
+function _angle3DFromHorizontal(from: HandLandmark, to: HandLandmark): number {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
   const dz = to.z - from.z;
@@ -201,7 +202,7 @@ function calculatePalmNormal(landmarks: HandLandmark[]): Vector3D {
  */
 function calculateHandForward(landmarks: HandLandmark[]): Vector3D {
   const wrist = landmarks[LANDMARKS.WRIST];
-  const middleMcp = landmarks[LANDMARKS.MIDDLE_MCP];
+  const _middleMcp = landmarks[LANDMARKS.MIDDLE_MCP];  // Available for refined calculation
   const middleTip = landmarks[LANDMARKS.MIDDLE_TIP];
   
   // Primary forward direction from wrist to middle fingertip
@@ -211,8 +212,9 @@ function calculateHandForward(landmarks: HandLandmark[]): Vector3D {
 
 /**
  * Calculate hand "up" vector (from palm to back of hand)
+ * @internal Reserved for future posture analysis
  */
-function calculateHandUp(landmarks: HandLandmark[]): Vector3D {
+function _calculateHandUp(landmarks: HandLandmark[]): Vector3D {
   const palmNormal = calculatePalmNormal(landmarks);
   // Palm normal points from palm to back of hand
   return palmNormal;
@@ -228,7 +230,7 @@ function calculateWristFlexion(landmarks: HandLandmark[]): number {
   
   // Approximate forearm direction as pointing toward camera (negative Z)
   // In a real application, you'd want forearm landmarks
-  const forearmDir: Vector3D = { x: 0, y: 0, z: -1 };
+  const _forearmDir: Vector3D = { x: 0, y: 0, z: -1 };  // Reserved for improved calculation
   
   // Hand direction from wrist to middle MCP
   const handDir = createVector(wrist, middleMcp);
@@ -249,7 +251,7 @@ function calculateWristPronation(landmarks: HandLandmark[]): number {
   const palmNormal = calculatePalmNormal(landmarks);
   
   // Reference "up" vector (against gravity)
-  const upVector: Vector3D = { x: 0, y: -1, z: 0 };
+  const _upVector: Vector3D = { x: 0, y: -1, z: 0 };  // Reserved for gravity reference
   
   // Forward vector (hand pointing direction)
   const handForward = calculateHandForward(landmarks);
@@ -283,10 +285,10 @@ function calculateWristDeviation(landmarks: HandLandmark[]): number {
   };
   
   // Vector from wrist to palm center (should be straight if no deviation)
-  const wristToPalm = createVector(wrist, palmCenter);
+  const _wristToPalm = createVector(wrist, palmCenter);  // Reserved for 3D analysis
   
   // Vector from wrist to middle MCP
-  const wristToMiddle = createVector(wrist, middleMcp);
+  const _wristToMiddle = createVector(wrist, middleMcp);  // Reserved for 3D analysis
   
   // Calculate lateral deviation
   // Positive = radial (toward thumb), Negative = ulnar (toward pinky)
@@ -344,8 +346,8 @@ function calculateThumbOpposition(landmarks: HandLandmark[]): number {
   const indexMcp = landmarks[LANDMARKS.INDEX_MCP];
   const pinkyMcp = landmarks[LANDMARKS.PINKY_MCP];
   
-  // Calculate palm plane
-  const palmNormal = calculatePalmNormal(landmarks);
+  // Calculate palm plane (reserved for 3D opposition analysis)
+  const _palmNormal = calculatePalmNormal(landmarks);
   
   // Thumb direction from MCP to tip
   const thumbDir = createVector(thumbMcp, thumbTip);

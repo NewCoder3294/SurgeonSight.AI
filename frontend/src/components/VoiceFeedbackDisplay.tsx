@@ -50,7 +50,7 @@ export default function VoiceFeedbackDisplay({
     return (
         <div className="bg-bg-secondary border border-border-subtle overflow-hidden">
             {/* Header - matching other panels with full-width border */}
-            <div className="flex items-center justify-between px-4 pt-4 pb-2 border-b border-border-subtle">
+            <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-border-subtle">
                 <div className="flex items-center gap-2">
                     <h3 className="text-xs tracking-widest text-text-muted uppercase">AI Coach</h3>
                     {/* Speaking indicator */}
@@ -61,20 +61,12 @@ export default function VoiceFeedbackDisplay({
                         </div>
                     )}
                 </div>
-                {/* Voice provider badge */}
-                <div className={`px-2 py-0.5 rounded text-[0.55rem] font-mono uppercase tracking-wider ${
-                    voiceProvider === 'elevenlabs' 
-                        ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' 
-                        : 'bg-gray-500/20 text-gray-400 border border-gray-500/30'
-                }`}>
-                    {voiceProvider === 'elevenlabs' ? '🎤 ElevenLabs' : '🔊 Web Speech'}
-                </div>
             </div>
 
             {/* Content wrapper with padding */}
             <div className="p-4">
                 {/* Current message with typing effect */}
-                <div className="bg-bg-tertiary border border-border-subtle rounded p-3 min-h-[60px] mb-3">
+                <div className="bg-bg-tertiary border border-border-subtle p-3 min-h-[60px] mb-3">
                     {currentMessage ? (
                         <div className="flex items-start gap-2">
                             <span className="text-lg">
@@ -100,7 +92,7 @@ export default function VoiceFeedbackDisplay({
 
                 {/* Stats bar */}
                 <div className="mb-2">
-                    <div className="bg-bg-tertiary p-2 border border-border-subtle rounded text-center">
+                    <div className="bg-bg-tertiary p-2 border border-border-subtle text-center">
                         <span className="font-mono text-[0.6rem] text-text-dim uppercase block mb-1">Score</span>
                         <span className={`font-mono text-lg text-gray-900`}>
                             {stats.overallScore}%
@@ -109,9 +101,9 @@ export default function VoiceFeedbackDisplay({
                 </div>
 
                 {/* Progress bar for score */}
-                <div className="h-1.5 bg-bg-tertiary rounded-full overflow-hidden">
+                <div className="h-1.5 bg-bg-tertiary overflow-hidden">
                     <div
-                        className={`h-full transition-all duration-500 rounded-full ${stats.overallScore >= 80 ? 'bg-success' :
+                        className={`h-full transition-all duration-500 ${stats.overallScore >= 80 ? 'bg-success' :
                             stats.overallScore >= 60 ? 'bg-warning' :
                                 stats.overallScore >= 40 ? 'bg-accent-rust' : 'bg-error'
                             }`}
