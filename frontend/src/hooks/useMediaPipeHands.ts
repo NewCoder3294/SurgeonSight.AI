@@ -96,8 +96,14 @@ interface UseMediaPipeHandsOptions {
 type HandsDetectedCallback = (hands: HandData[]) => void;
 
 // Calculate angle between two vectors in degrees
-function calculateAngle(p1: HandLandmark, p2: HandLandmark): number {
-    const dx = p2.x - p1.x;
+// For consistent measurement across both hands, we normalize to a "right hand" perspective
+// Left hands have their X coordinates mirrored so the angle is calculated the same way
+function calculateAngle(p1: HandLandmark, p2: HandLandmark, handedness: 'Left' | 'Right' = 'Right'): number {
+    // For left hand, mirror X coordinates so angle is measured consistently with right hand
+    // This makes both hands report the same angle when held at the same physical position
+    const dx = handedness === 'Left' 
+        ? (p1.x - p2.x)   // Flip direction for left hand
+        : (p2.x - p1.x);  // Normal direction for right hand
     const dy = p2.y - p1.y;
     const radians = Math.atan2(dy, dx);
     return radians * (180 / Math.PI);
@@ -406,7 +412,8 @@ export function useMediaPipeHands({
                     const filters = getFilters(handedness);
 
                     // Calculate surgical metrics using original landmarks (for accurate angle math)
-                    const scalpelAngle = calculateAngle(landmarks[WRIST], landmarks[INDEX_TIP]);
+                    // Pass handedness to ensure consistent angle measurement for both hands
+                    const scalpelAngle = calculateAngle(landmarks[WRIST], landmarks[INDEX_TIP], handedness);
 
                     // Calculate pinch angle (thumb tip to index MCP to index tip)
                     const pinchAngle = calculateAngle3Points(
@@ -439,9 +446,10 @@ export function useMediaPipeHands({
                     const speed = calculateSpeed(landmarks, prevLandmarks);
                     
                     // Calculate advanced angles if available
+                    // Pass handedness for consistent measurement across both hands
                     let advancedAngles: { wristPronation?: number; wristFlexion?: number; confidence?: number } = {};
                     try {
-                        const surgicalAngles = calculateSurgicalAngles(landmarks);
+                        const surgicalAngles = calculateSurgicalAngles(landmarks, handedness);
                         advancedAngles = {
                             wristPronation: surgicalAngles.wristPronation,
                             wristFlexion: surgicalAngles.wristFlexion,
