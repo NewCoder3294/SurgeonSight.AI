@@ -157,13 +157,9 @@ function signedAngle(a: Vector3D, b: Vector3D, axis: Vector3D): number {
 
 /**
  * Calculate 2D angle from horizontal (in degrees)
- * For consistent measurement across both hands, left hand X coordinates are mirrored
  */
-function angle2DFromHorizontal(from: HandLandmark, to: HandLandmark, handedness: 'Left' | 'Right' = 'Right'): number {
-  // For left hand, mirror X coordinates so angle is measured consistently with right hand
-  const dx = handedness === 'Left' 
-    ? (from.x - to.x)   // Flip direction for left hand
-    : (to.x - from.x);  // Normal direction for right hand
+function angle2DFromHorizontal(from: HandLandmark, to: HandLandmark): number {
+  const dx = to.x - from.x;
   const dy = to.y - from.y;
   return Math.atan2(dy, dx) * (180 / Math.PI);
 }
@@ -402,12 +398,12 @@ function calculateHandPitch(landmarks: HandLandmark[]): number {
  * Calculate instrument axis angle (the angle of a held instrument)
  * This is the angle of the imaginary line between thumb tip and index tip
  */
-function calculateInstrumentAxis(landmarks: HandLandmark[], handedness: 'Left' | 'Right' = 'Right'): number {
+function calculateInstrumentAxis(landmarks: HandLandmark[]): number {
   const thumbTip = landmarks[LANDMARKS.THUMB_TIP];
   const indexTip = landmarks[LANDMARKS.INDEX_TIP];
   
   // 2D angle from horizontal in the view plane
-  return angle2DFromHorizontal(thumbTip, indexTip, handedness);
+  return angle2DFromHorizontal(thumbTip, indexTip);
 }
 
 /**
@@ -448,10 +444,8 @@ function calculateConfidence(landmarks: HandLandmark[]): number {
 
 /**
  * Calculate all surgical angle metrics from landmarks
- * @param landmarks - Array of 21 hand landmarks from MediaPipe
- * @param handedness - 'Left' or 'Right' hand for consistent angle measurement
  */
-export function calculateSurgicalAngles(landmarks: HandLandmark[], handedness: 'Left' | 'Right' = 'Right'): SurgicalAngleMetrics {
+export function calculateSurgicalAngles(landmarks: HandLandmark[]): SurgicalAngleMetrics {
   if (!landmarks || landmarks.length < 21) {
     return {
       scalpelAngle: 0,
@@ -473,8 +467,7 @@ export function calculateSurgicalAngles(landmarks: HandLandmark[], handedness: '
 
   return {
     // Primary scalpel angle (2D angle from wrist to index tip)
-    // Pass handedness for consistent measurement across both hands
-    scalpelAngle: angle2DFromHorizontal(wrist, indexTip, handedness),
+    scalpelAngle: angle2DFromHorizontal(wrist, indexTip),
     
     // Wrist angles
     wristFlexion: calculateWristFlexion(landmarks),
@@ -490,8 +483,8 @@ export function calculateSurgicalAngles(landmarks: HandLandmark[], handedness: '
     handRoll: calculateHandRoll(landmarks),
     handPitch: calculateHandPitch(landmarks),
     
-    // Instrument angle (pass handedness for consistent measurement)
-    instrumentAxis: calculateInstrumentAxis(landmarks, handedness),
+    // Instrument angle
+    instrumentAxis: calculateInstrumentAxis(landmarks),
     
     // Confidence
     confidence: calculateConfidence(landmarks),
