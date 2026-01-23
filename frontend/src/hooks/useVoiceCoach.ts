@@ -2,7 +2,8 @@
  * useVoiceCoach - Mind-blowing voice coaching with typing animation
  * 
  * Features:
- * - Reliable voice playback with multiple fallbacks
+ * - ElevenLabs AI voice synthesis (primary)
+ * - Web Speech API fallback
  * - Cool typing animation for feedback text
  * - Voice queue to prevent overlap
  * - Visual speaking indicator
@@ -10,6 +11,12 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import {
+  ElevenLabsSpeaker,
+  isElevenLabsConfigured,
+  type VoiceId,
+  VOICE_IDS,
+} from '../services/elevenLabs';
 
 export interface VoiceMessage {
     text: string;
@@ -311,15 +318,34 @@ const COACHING_PHRASES = {
     ]
 };
 
-export function useVoiceCoach() {
+export interface VoiceCoachOptions {
+    useElevenLabs?: boolean;  // Use ElevenLabs for voice (default: true if configured)
+    elevenLabsVoice?: VoiceId | string;  // ElevenLabs voice to use
+    elevenLabsStability?: number;  // Voice stability (0-1)
+    elevenLabsSimilarity?: number;  // Voice similarity boost (0-1)
+}
+
+export function useVoiceCoach(options: VoiceCoachOptions = {}) {
+    const {
+        useElevenLabs = true,  // Default to ElevenLabs if available
+        elevenLabsVoice = 'rachel',  // Professional female voice
+        elevenLabsStability = 0.5,
+        elevenLabsSimilarity = 0.75,
+    } = options;
+
     const [voiceEnabled, setVoiceEnabled] = useState(true);
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [currentMessage, setCurrentMessage] = useState<string>('');
     const [displayedText, setDisplayedText] = useState<string>(''); // For typing animation
     const [messageHistory, setMessageHistory] = useState<VoiceMessage[]>([]);
     const [stats, setStats] = useState<SessionStats>(DEFAULT_STATS);
+    // Default to ElevenLabs if configured, otherwise Web Speech
+    const [voiceProvider, setVoiceProvider] = useState<'elevenlabs' | 'webspeech'>(
+        isElevenLabsConfigured() ? 'elevenlabs' : 'webspeech'
+    );
 
     const synthRef = useRef<SpeechSynthesis | null>(null);
+    const elevenLabsSpeakerRef = useRef<ElevenLabsSpeaker | null>(null);
     const voiceQueueRef = useRef<VoiceMessage[]>([]);
     const isProcessingRef = useRef(false);
     const typingIntervalRef = useRef<any>(null);
@@ -327,56 +353,101 @@ export function useVoiceCoach() {
     const streakStartRef = useRef<number>(0);
     const angleDiffsRef = useRef<number[]>([]);
 
-    // Initialize speech synthesis
+    // Initialize voice providers
     useEffect(() => {
         if (typeof window !== 'undefined') {
+            // Initialize Web Speech API (always available as fallback)
             synthRef.current = window.speechSynthesis;
 
             // Pre-load voices
             const loadVoices = () => {
                 const voices = synthRef.current?.getVoices() || [];
-                console.log(`🔊 Loaded ${voices.length} voices for coaching`);
+                console.log(`🔊 Loaded ${voices.length} Web Speech voices`);
             };
 
             loadVoices();
             synthRef.current?.addEventListener('voiceschanged', loadVoices);
 
+            // Initialize ElevenLabs if configured and requested
+            if (useElevenLabs && isElevenLabsConfigured()) {
+                elevenLabsSpeakerRef.current = new ElevenLabsSpeaker({
+                    voiceId: elevenLabsVoice,
+                    stability: elevenLabsStability,
+                    similarityBoost: elevenLabsSimilarity,
+                });
+                setVoiceProvider('elevenlabs');
+                console.log(`🎤 ElevenLabs voice initialized (voice: ${elevenLabsVoice})`);
+            } else {
+                setVoiceProvider('webspeech');
+                if (useElevenLabs) {
+                    console.log('⚠️ ElevenLabs requested but not configured, using Web Speech API');
+                }
+            }
+
             return () => {
                 synthRef.current?.removeEventListener('voiceschanged', loadVoices);
+                elevenLabsSpeakerRef.current?.stop();
             };
         }
-    }, []);
+    }, [useElevenLabs, elevenLabsVoice, elevenLabsStability, elevenLabsSimilarity]);
 
-    // Typing animation effect
+    // Typing animation effect - use refs to avoid re-render loops
+    const displayedTextRef = useRef<string>('');
     const animateTyping = useCallback((text: string, speed: number = 30) => {
         // Clear previous animation
         if (typingIntervalRef.current) {
             clearInterval(typingIntervalRef.current);
         }
 
+        displayedTextRef.current = '';
         setDisplayedText('');
         let index = 0;
 
         typingIntervalRef.current = setInterval(() => {
             if (index < text.length) {
-                setDisplayedText(text.slice(0, index + 1));
                 index++;
+                displayedTextRef.current = text.slice(0, index);
+                // Only update state every 3 characters to reduce re-renders
+                if (index % 3 === 0 || index === text.length) {
+                    setDisplayedText(displayedTextRef.current);
+                }
             } else {
                 clearInterval(typingIntervalRef.current);
+                setDisplayedText(text); // Final complete text
             }
         }, speed);
     }, []);
 
-    // Core speak function with fallbacks
+    // Throttle tracking for speak calls
+    const lastSpeakTimeRef = useRef<number>(0);
+    const MIN_SPEAK_INTERVAL = 3000; // Minimum 3 seconds between coaching messages
+    
+    // Core speak function with fallbacks and throttling
     const speak = useCallback((text: string, type: VoiceMessage['type'] = 'coaching', priority: VoiceMessage['priority'] = 'normal') => {
         if (!voiceEnabled) return;
+
+        const now = Date.now();
+        
+        // Throttle non-high-priority messages to prevent flooding
+        if (priority !== 'high' && now - lastSpeakTimeRef.current < MIN_SPEAK_INTERVAL) {
+            console.log('[VoiceCoach] Throttled - too soon since last message');
+            return;
+        }
+        
+        // Limit queue size to prevent memory issues and speech flooding
+        if (voiceQueueRef.current.length >= 3) {
+            console.log('[VoiceCoach] Queue full, skipping message');
+            return;
+        }
 
         const message: VoiceMessage = {
             text,
             type,
             priority,
-            timestamp: Date.now()
+            timestamp: now
         };
+        
+        lastSpeakTimeRef.current = now;
 
         // Add to queue
         if (priority === 'high') {
@@ -413,21 +484,60 @@ export function useVoiceCoach() {
             encouragements: message.type === 'encouragement' ? prev.encouragements + 1 : prev.encouragements
         }));
 
-        // Try to speak
+        // Try to speak with ElevenLabs first, fall back to Web Speech
         try {
-            await speakWithSynthesis(message.text, message.priority === 'high');
+            const useElevenLabsForThis = elevenLabsSpeakerRef.current && 
+                                          voiceProvider === 'elevenlabs' && 
+                                          isElevenLabsConfigured();
+            
+            if (useElevenLabsForThis) {
+                console.log('🎤 Using ElevenLabs voice');
+                // Use ElevenLabs with timeout fallback
+                const elevenLabsPromise = new Promise<boolean>((resolve) => {
+                    const timeout = setTimeout(() => {
+                        console.warn('ElevenLabs timeout, falling back to Web Speech');
+                        resolve(false);
+                    }, 8000); // 8 second timeout
+                    
+                    elevenLabsSpeakerRef.current!.speak(message.text, {
+                        onEnd: () => {
+                            clearTimeout(timeout);
+                            resolve(true);
+                        },
+                        onError: (err) => {
+                            clearTimeout(timeout);
+                            console.warn('ElevenLabs error:', err?.message || err);
+                            resolve(false);
+                        }
+                    });
+                });
+                
+                const success = await elevenLabsPromise;
+                if (!success) {
+                    // Fall back to Web Speech
+                    await speakWithSynthesis(message.text, message.priority === 'high');
+                }
+            } else {
+                // Use Web Speech API
+                console.log('🔊 Using Web Speech API');
+                await speakWithSynthesis(message.text, message.priority === 'high');
+            }
         } catch (err) {
             console.error('Speech failed:', err);
+            // Final fallback - try Web Speech
+            try {
+                await speakWithSynthesis(message.text, false);
+            } catch {}
         }
 
         setIsSpeaking(false);
         isProcessingRef.current = false;
 
-        // Process next in queue
+        // Process next in queue with longer gap to prevent overlap
         if (voiceQueueRef.current.length > 0) {
-            setTimeout(processQueue, 300); // Small gap between messages
+            setTimeout(processQueue, 800); // Longer gap between messages
         }
-    }, [animateTyping]);
+    }, [animateTyping, voiceProvider]);
 
     // Speech synthesis with robust fallback
     const speakWithSynthesis = useCallback((text: string, urgent: boolean = false): Promise<void> => {
@@ -445,8 +555,8 @@ export function useVoiceCoach() {
             }
 
             const utterance = new SpeechSynthesisUtterance(text);
-            utterance.rate = urgent ? 0.85 : 0.95; // Slower for clarity
-            utterance.pitch = 1.1;
+            utterance.rate = urgent ? 1.15 : 1.25; // Faster speech for snappy feedback
+            utterance.pitch = 1.05;
             utterance.volume = 1.0; // MAXIMUM VOLUME
 
             // Find best voice
@@ -465,8 +575,11 @@ export function useVoiceCoach() {
             }
 
             utterance.onend = () => resolve();
-            utterance.onerror = (e) => {
-                console.error('Speech error:', e);
+            utterance.onerror = (e: SpeechSynthesisErrorEvent) => {
+                // Only log unexpected errors, not cancellations
+                if (e.error !== 'canceled' && e.error !== 'interrupted') {
+                    console.error('Speech error:', e.error);
+                }
                 resolve(); // Resolve anyway so UI continues
             };
 
@@ -727,6 +840,24 @@ export function useVoiceCoach() {
         lastCoachTimeRef.current = 0;
     }, []);
 
+    // Switch voice provider
+    const switchVoiceProvider = useCallback((provider: 'elevenlabs' | 'webspeech') => {
+        if (provider === 'elevenlabs' && !isElevenLabsConfigured()) {
+            console.warn('Cannot switch to ElevenLabs - not configured');
+            return;
+        }
+        setVoiceProvider(provider);
+        console.log(`🔊 Switched to ${provider} voice provider`);
+    }, []);
+
+    // Set ElevenLabs voice
+    const setElevenLabsVoice = useCallback((voice: VoiceId | string) => {
+        if (elevenLabsSpeakerRef.current) {
+            elevenLabsSpeakerRef.current.setVoice(voice);
+            console.log(`🎤 ElevenLabs voice changed to: ${voice}`);
+        }
+    }, []);
+
     // Cleanup
     useEffect(() => {
         return () => {
@@ -734,6 +865,7 @@ export function useVoiceCoach() {
                 clearInterval(typingIntervalRef.current);
             }
             synthRef.current?.cancel();
+            elevenLabsSpeakerRef.current?.stop();
         };
     }, []);
 
@@ -745,6 +877,8 @@ export function useVoiceCoach() {
         displayedText, // Use this for typing animation display
         messageHistory,
         stats,
+        voiceProvider,  // 'elevenlabs' or 'webspeech'
+        isElevenLabsConfigured: isElevenLabsConfigured(),
 
         // Actions
         speak,
@@ -754,7 +888,12 @@ export function useVoiceCoach() {
         toggleVoice,
         testVoice,
         resetStats,
-        setVoiceEnabled
+        setVoiceEnabled,
+        switchVoiceProvider,
+        setElevenLabsVoice,
+        
+        // Available voices
+        availableElevenLabsVoices: VOICE_IDS,
     };
 }
 

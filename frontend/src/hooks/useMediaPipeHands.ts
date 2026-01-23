@@ -1,13 +1,20 @@
 /**
  * useMediaPipeHands - Real-time hand tracking with surgical metrics
  * 
- * Uses MediaPipe HandLandmarker to detect hands and calculate:
- * - Scalpel angle (index finger to wrist)
- * - Hand steadiness (jitter from position variance)
- * - Grip classification (pencil vs power)
+ * UPGRADED VERSION with advanced filtering and analysis:
+ * - One Euro / Kalman filtering for smooth, stable tracking
+ * - Advanced 3D angle calculations (pronation, supination, flexion)
+ * - Real-time tremor analysis
+ * - ML-like grip classification with quality scores
+ * 
+ * Maintains backward compatibility with existing code.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { OneEuroFilter, AdaptiveKalmanFilter } from '../utils/kalmanFilter';
+import { calculateSurgicalAngles } from '../utils/surgicalAngles';
+import { TremorAnalyzer } from '../utils/tremorAnalysis';
+import { classifyGrip as advancedClassifyGrip } from '../utils/advancedGripClassifier';
 
 // MediaPipe landmark indices
 const WRIST = 0;
@@ -22,8 +29,24 @@ const RING_TIP = 16;
 const PINKY_MCP = 17;
 const PINKY_TIP = 20;
 
-// Exponential Moving Average for smoothing metrics
-// alpha: higher = more responsive, lower = smoother (0.2-0.4 recommended)
+// One Euro Filter for smooth, responsive filtering
+class MetricFilter {
+    private filter: OneEuroFilter;
+    
+    constructor(initialValue: number = 0, minCutoff: number = 1.0, beta: number = 0.007) {
+        this.filter = new OneEuroFilter(initialValue, minCutoff, beta);
+    }
+    
+    update(value: number): number {
+        return this.filter.update(value);
+    }
+    
+    reset(value: number): void {
+        this.filter.reset(value);
+    }
+}
+
+// Legacy EMA for backward compatibility fallback
 function ema(current: number, previous: number | null, alpha = 0.3): number {
     if (previous === null) return current;
     return alpha * current + (1 - alpha) * previous;
@@ -43,6 +66,13 @@ export interface SurgicalMetrics {
     speed: number;             // Motion speed in normalized units
     gripType: 'pencil' | 'power' | 'unknown';
     gripConfidence: number;    // 0-1
+    
+    // Advanced metrics (new)
+    wristPronation?: number;   // Pronation/supination angle
+    wristFlexion?: number;     // Flexion/extension angle
+    tremorSeverity?: number;   // 0-100 tremor severity
+    gripQuality?: number;      // 0-100 grip quality score
+    trackingConfidence?: number; // 0-1 confidence in tracking
 }
 
 export interface HandData {
@@ -56,7 +86,14 @@ interface UseMediaPipeHandsOptions {
     enabled?: boolean;
     targetFps?: number;
     onHandsDetected?: (hands: HandData[]) => void;
+    // Advanced options (new)
+    useAdvancedFiltering?: boolean;   // Use One Euro / Kalman filtering
+    useAdvancedGrip?: boolean;        // Use ML-like grip classification
+    useTremorAnalysis?: boolean;      // Enable tremor detection
 }
+
+// Type for the callback ref
+type HandsDetectedCallback = (hands: HandData[]) => void;
 
 // Calculate angle between two vectors in degrees
 function calculateAngle(p1: HandLandmark, p2: HandLandmark): number {
@@ -222,7 +259,10 @@ export function useMediaPipeHands({
     videoElement,
     enabled = true,
     targetFps = 60, // Default to 60fps for high-speed tracking (was 30)
-    onHandsDetected
+    onHandsDetected,
+    useAdvancedFiltering = true,  // Default to advanced filtering
+    useAdvancedGrip = true,       // Default to advanced grip
+    useTremorAnalysis = true      // Default to tremor analysis
 }: UseMediaPipeHandsOptions) {
     const [hands, setHands] = useState<HandData[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -231,11 +271,47 @@ export function useMediaPipeHands({
     const handLandmarkerRef = useRef<any>(null);
     const animationFrameRef = useRef<number | null>(null);
     const lastFrameTimeRef = useRef<number>(0);
+    
+    // Ref for callback to prevent infinite re-renders
+    const onHandsDetectedRef = useRef<HandsDetectedCallback | undefined>(onHandsDetected);
+    
+    // Keep ref updated with latest callback
+    useEffect(() => {
+        onHandsDetectedRef.current = onHandsDetected;
+    }, [onHandsDetected]);
 
     // Per-hand tracking using Maps keyed by handedness
     const landmarkHistoryRef = useRef<Map<string, HandLandmark[][]>>(new Map());
     const prevLandmarksRef = useRef<Map<string, HandLandmark[]>>(new Map());
     const prevMetricsRef = useRef<Map<string, SurgicalMetrics>>(new Map());
+    
+    // Advanced filtering per-hand (new)
+    const angleFiltersRef = useRef<Map<string, MetricFilter>>(new Map());
+    const steadinessFiltersRef = useRef<Map<string, MetricFilter>>(new Map());
+    const speedFiltersRef = useRef<Map<string, MetricFilter>>(new Map());
+    const tremorAnalyzersRef = useRef<Map<string, TremorAnalyzer>>(new Map());
+    
+    // Helper to get or create per-hand filters
+    const getFilters = useCallback((handedness: string) => {
+        if (!angleFiltersRef.current.has(handedness)) {
+            angleFiltersRef.current.set(handedness, new MetricFilter(0, 1.5, 0.01));
+        }
+        if (!steadinessFiltersRef.current.has(handedness)) {
+            steadinessFiltersRef.current.set(handedness, new MetricFilter(70, 0.5, 0.001));
+        }
+        if (!speedFiltersRef.current.has(handedness)) {
+            speedFiltersRef.current.set(handedness, new MetricFilter(0, 1.0, 0.005));
+        }
+        if (!tremorAnalyzersRef.current.has(handedness)) {
+            tremorAnalyzersRef.current.set(handedness, new TremorAnalyzer({ sampleRate: 60 }));
+        }
+        return {
+            angle: angleFiltersRef.current.get(handedness)!,
+            steadiness: steadinessFiltersRef.current.get(handedness)!,
+            speed: speedFiltersRef.current.get(handedness)!,
+            tremor: tremorAnalyzersRef.current.get(handedness)!,
+        };
+    }, []);
 
     // Initialize MediaPipe
     useEffect(() => {
@@ -325,6 +401,9 @@ export function useMediaPipeHands({
                     const handHistory = landmarkHistoryRef.current.get(handedness) || [];
                     const prevLandmarks = prevLandmarksRef.current.get(handedness) || null;
                     const prevMetrics = prevMetricsRef.current.get(handedness) || null;
+                    
+                    // Get or create per-hand filters
+                    const filters = getFilters(handedness);
 
                     // Calculate surgical metrics using original landmarks (for accurate angle math)
                     const scalpelAngle = calculateAngle(landmarks[WRIST], landmarks[INDEX_TIP]);
@@ -339,9 +418,46 @@ export function useMediaPipeHands({
                     // Calculate finger bend
                     const fingerBend = calculateFingerBend(landmarks);
 
-                    const grip = classifyGrip(landmarks);
+                    // Use advanced or basic grip classification
+                    let grip: { type: 'pencil' | 'power' | 'unknown'; confidence: number };
+                    let gripQuality = 50;
+                    
+                    if (useAdvancedGrip) {
+                        const advancedGrip = advancedClassifyGrip(landmarks);
+                        // Convert advanced grip type to basic type for backward compatibility
+                        const basicType = advancedGrip.type === 'pencil' || advancedGrip.type === 'tripod' || 
+                                         advancedGrip.type === 'modified_tripod' || advancedGrip.type === 'pinch' 
+                                         ? 'pencil' : advancedGrip.type === 'power' || advancedGrip.type === 'palm' 
+                                         ? 'power' : 'unknown';
+                        grip = { type: basicType, confidence: advancedGrip.confidence };
+                        gripQuality = advancedGrip.quality.overall;
+                    } else {
+                        grip = classifyGrip(landmarks);
+                    }
+                    
                     const steadiness = calculateSteadiness(landmarks, handHistory);
                     const speed = calculateSpeed(landmarks, prevLandmarks);
+                    
+                    // Calculate advanced angles if available
+                    let advancedAngles: { wristPronation?: number; wristFlexion?: number; confidence?: number } = {};
+                    try {
+                        const surgicalAngles = calculateSurgicalAngles(landmarks);
+                        advancedAngles = {
+                            wristPronation: surgicalAngles.wristPronation,
+                            wristFlexion: surgicalAngles.wristFlexion,
+                            confidence: surgicalAngles.confidence,
+                        };
+                    } catch (e) {
+                        // Graceful fallback if advanced angles fail
+                    }
+                    
+                    // Tremor analysis if enabled
+                    let tremorSeverity = 0;
+                    if (useTremorAnalysis) {
+                        filters.tremor.addSample(landmarks[WRIST], timestamp);
+                        const tremorResult = filters.tremor.analyze();
+                        tremorSeverity = tremorResult.severity;
+                    }
 
                     // Update per-hand history (keep last 10 frames)
                     handHistory.push([...landmarks]);
@@ -351,17 +467,38 @@ export function useMediaPipeHands({
                     landmarkHistoryRef.current.set(handedness, handHistory);
                     prevLandmarksRef.current.set(handedness, [...landmarks]);
 
-                    // Apply EMA smoothing to metrics for stability
-                    // Alpha increased to 0.8 (was 0.6) for high-speed response
-                    const smoothedMetrics: SurgicalMetrics = {
-                        scalpelAngle: ema(Math.abs(scalpelAngle), prevMetrics?.scalpelAngle ?? null, 0.8),
-                        pinchAngle: ema(pinchAngle, prevMetrics?.pinchAngle ?? null, 0.8),
-                        fingerBend: ema(fingerBend, prevMetrics?.fingerBend ?? null, 0.8),
-                        steadiness: ema(steadiness, prevMetrics?.steadiness ?? null, 0.6),  // Slower decay for steadiness is good
-                        speed: ema(speed, prevMetrics?.speed ?? null, 0.8),
-                        gripType: grip.type,
-                        gripConfidence: grip.confidence
-                    };
+                    // Apply advanced filtering or legacy EMA
+                    let smoothedMetrics: SurgicalMetrics;
+                    
+                    if (useAdvancedFiltering) {
+                        // Use One Euro filtering for smooth, responsive tracking
+                        smoothedMetrics = {
+                            scalpelAngle: filters.angle.update(Math.abs(scalpelAngle)),
+                            pinchAngle: ema(pinchAngle, prevMetrics?.pinchAngle ?? null, 0.8),
+                            fingerBend: ema(fingerBend, prevMetrics?.fingerBend ?? null, 0.8),
+                            steadiness: filters.steadiness.update(steadiness),
+                            speed: filters.speed.update(speed),
+                            gripType: grip.type,
+                            gripConfidence: grip.confidence,
+                            // Advanced metrics
+                            wristPronation: advancedAngles.wristPronation,
+                            wristFlexion: advancedAngles.wristFlexion,
+                            tremorSeverity: tremorSeverity,
+                            gripQuality: gripQuality,
+                            trackingConfidence: advancedAngles.confidence,
+                        };
+                    } else {
+                        // Legacy EMA smoothing
+                        smoothedMetrics = {
+                            scalpelAngle: ema(Math.abs(scalpelAngle), prevMetrics?.scalpelAngle ?? null, 0.8),
+                            pinchAngle: ema(pinchAngle, prevMetrics?.pinchAngle ?? null, 0.8),
+                            fingerBend: ema(fingerBend, prevMetrics?.fingerBend ?? null, 0.8),
+                            steadiness: ema(steadiness, prevMetrics?.steadiness ?? null, 0.6),
+                            speed: ema(speed, prevMetrics?.speed ?? null, 0.8),
+                            gripType: grip.type,
+                            gripConfidence: grip.confidence
+                        };
+                    }
 
                     // Store for next frame (per-hand)
                     prevMetricsRef.current.set(handedness, smoothedMetrics);
@@ -374,17 +511,17 @@ export function useMediaPipeHands({
                 });
 
                 setHands(processedHands);
-                onHandsDetected?.(processedHands);
+                onHandsDetectedRef.current?.(processedHands);
             } else {
                 setHands([]);
-                onHandsDetected?.([]);  // Notify parent that hands are gone so overlay clears
+                onHandsDetectedRef.current?.([]);  // Notify parent that hands are gone so overlay clears
             }
         } catch (err) {
             // Silently handle frame processing errors
         }
 
         animationFrameRef.current = requestAnimationFrame(processFrame);
-    }, [videoElement, targetFps, onHandsDetected]);
+    }, [videoElement, targetFps]); // Removed onHandsDetected - using ref instead to prevent infinite loops
 
     // Start/stop processing loop
     useEffect(() => {

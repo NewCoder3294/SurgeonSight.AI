@@ -12,21 +12,23 @@ import { useState } from 'react';
 import type { VoiceMessage, SessionStats } from '../hooks/useVoiceCoach';
 
 interface VoiceFeedbackDisplayProps {
-
     displayedText: string;
     currentMessage: string;
     messageHistory: VoiceMessage[];
     stats: SessionStats;
     voiceEnabled: boolean;
+    voiceProvider?: 'elevenlabs' | 'webspeech';
+    isSpeaking?: boolean;
 }
 
 export default function VoiceFeedbackDisplay({
-
     displayedText,
     currentMessage,
     messageHistory,
     stats,
     voiceEnabled,
+    voiceProvider = 'webspeech',
+    isSpeaking = false,
 }: VoiceFeedbackDisplayProps) {
     const [showHistory, setShowHistory] = useState(false);
 
@@ -51,6 +53,21 @@ export default function VoiceFeedbackDisplay({
             <div className="flex items-center justify-between px-4 pt-4 pb-2 border-b border-border-subtle">
                 <div className="flex items-center gap-2">
                     <h3 className="text-xs tracking-widest text-text-muted uppercase">AI Coach</h3>
+                    {/* Speaking indicator */}
+                    {isSpeaking && (
+                        <div className="flex items-center gap-1">
+                            <span className="w-2 h-2 rounded-full bg-accent-rust animate-pulse" />
+                            <span className="text-[0.6rem] font-mono text-accent-rust uppercase">Speaking</span>
+                        </div>
+                    )}
+                </div>
+                {/* Voice provider badge */}
+                <div className={`px-2 py-0.5 rounded text-[0.55rem] font-mono uppercase tracking-wider ${
+                    voiceProvider === 'elevenlabs' 
+                        ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' 
+                        : 'bg-gray-500/20 text-gray-400 border border-gray-500/30'
+                }`}>
+                    {voiceProvider === 'elevenlabs' ? '🎤 ElevenLabs' : '🔊 Web Speech'}
                 </div>
             </div>
 

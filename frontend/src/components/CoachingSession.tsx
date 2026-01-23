@@ -78,12 +78,27 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
     // Voice feedback hook (legacy - keep for fallback)
     const { playFeedback, speakWithWebSpeech, isSpeaking } = useVoiceFeedback();
 
-    // NEW: Mind-blowing voice coach with typing animation (separate for each hand)
-    const leftVoiceCoach = useVoiceCoach();
-    const rightVoiceCoach = useVoiceCoach();
+    // SINGLE voice coach for ALL hands - prevents overlapping speech
+    // Uses turn-taking logic to alternate between left/right hands
+    const voiceCoach = useVoiceCoach({
+        useElevenLabs: true,
+        elevenLabsVoice: 'rachel',  // Professional female voice
+        elevenLabsStability: 0.35,  // Lower = faster/more dynamic
+        elevenLabsSimilarity: 0.8,
+    });
+    
+    // Track which hand was last critiqued to implement turn-taking
+    const lastCritiquedHandRef = useRef<'Left' | 'Right' | null>(null);
+    const lastCritiqueTimeRef = useRef<number>(0);
+    const HAND_CRITIQUE_COOLDOWN = 5000; // 5 seconds before same hand can be critiqued again
 
-    // Legacy/Global coach for AI observations
-    const globalVoiceCoach = useVoiceCoach();
+    // Legacy/Global coach for AI observations (keep separate to avoid conflict)
+    const globalVoiceCoach = useVoiceCoach({
+        useElevenLabs: true,
+        elevenLabsVoice: 'adam',  // Deep, clear male voice for AI observations
+        elevenLabsStability: 0.4,  // Lower = faster/more dynamic
+        elevenLabsSimilarity: 0.85,
+    });
 
     // Handle Overshoot AI observation
     const handleAiObservation = useCallback((observation: OvershootObservation) => {
@@ -166,57 +181,73 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
             if (hands.length > 0) {
                 const metrics = hands[0].metrics;
                 setCurrentMetrics(metrics);
-                setIsAnalyzing(false);
-                setTimeout(() => setIsAnalyzing(true), 200);
+                // Removed rapid isAnalyzing toggle that caused infinite loop
 
-                // Coach Left Hand
-                if (leftVoiceCoach.voiceEnabled) {
+                // TURN-TAKING: Only coach ONE hand at a time to prevent overlapping speech
+                if (voiceCoach.voiceEnabled && !voiceCoach.isSpeaking) {
                     const leftHand = hands.find(h => h.handedness === 'Left');
-                    if (leftHand) {
-                        leftVoiceCoach.coachOnMetrics(
-                            {
-                                scalpelAngle: leftHand.metrics.scalpelAngle,
-                                steadiness: leftHand.metrics.steadiness,
-                                gripType: leftHand.metrics.gripType,
-                                speed: leftHand.metrics.speed,
-                                handDetected: true
-                            },
-                            {
-                                angleTarget: expertMetrics?.leftHand?.angleTarget ?? expertMetrics?.angleTarget ?? 45,
-                                angleTolerance: expertMetrics?.leftHand?.angleTolerance ?? expertMetrics?.angleTolerance ?? 15,
-                                steadinessTarget: expertMetrics?.leftHand?.steadinessTarget ?? expertMetrics?.steadinessTarget ?? 70,
-                                expectedGripType: expertMetrics?.leftHand?.expectedGripType as any ?? expertMetrics?.expectedGripType ?? 'unknown',
-                                speedOptimal: expertMetrics?.leftHand?.speedOptimal ?? 50,
-                                speedTolerance: expertMetrics?.leftHand?.speedTolerance ?? 15,
-                                contextElements: expertMetrics?.techniqueContext
-                            },
-                            'Left Hand'
-                        );
-                    }
-                }
-
-                // Coach Right Hand
-                if (rightVoiceCoach.voiceEnabled) {
                     const rightHand = hands.find(h => h.handedness === 'Right');
-                    if (rightHand) {
-                        rightVoiceCoach.coachOnMetrics(
+                    const now = Date.now();
+                    
+                    // Determine which hand to coach next (alternating turn-taking)
+                    let handToCoach: HandData | undefined;
+                    let handLabel: 'Left Hand' | 'Right Hand';
+                    let handMetrics: any;
+                    
+                    // If only one hand, coach that one
+                    if (leftHand && !rightHand) {
+                        handToCoach = leftHand;
+                        handLabel = 'Left Hand';
+                        handMetrics = expertMetrics?.leftHand;
+                    } else if (rightHand && !leftHand) {
+                        handToCoach = rightHand;
+                        handLabel = 'Right Hand';
+                        handMetrics = expertMetrics?.rightHand;
+                    } else if (leftHand && rightHand) {
+                        // BOTH hands visible - alternate between them
+                        // Priority: coach the hand that WASN'T coached last
+                        const timeSinceLastCritique = now - lastCritiqueTimeRef.current;
+                        
+                        if (lastCritiquedHandRef.current === 'Right' || lastCritiquedHandRef.current === null) {
+                            // Last was Right (or none), so coach Left now
+                            if (timeSinceLastCritique >= HAND_CRITIQUE_COOLDOWN || lastCritiquedHandRef.current === null) {
+                                handToCoach = leftHand;
+                                handLabel = 'Left Hand';
+                                handMetrics = expertMetrics?.leftHand;
+                            }
+                        } else {
+                            // Last was Left, so coach Right now
+                            if (timeSinceLastCritique >= HAND_CRITIQUE_COOLDOWN) {
+                                handToCoach = rightHand;
+                                handLabel = 'Right Hand';
+                                handMetrics = expertMetrics?.rightHand;
+                            }
+                        }
+                    }
+                    
+                    // Coach the selected hand
+                    if (handToCoach) {
+                        lastCritiquedHandRef.current = handLabel === 'Left Hand' ? 'Left' : 'Right';
+                        lastCritiqueTimeRef.current = now;
+                        
+                        voiceCoach.coachOnMetrics(
                             {
-                                scalpelAngle: rightHand.metrics.scalpelAngle,
-                                steadiness: rightHand.metrics.steadiness,
-                                gripType: rightHand.metrics.gripType,
-                                speed: rightHand.metrics.speed,
+                                scalpelAngle: handToCoach.metrics.scalpelAngle,
+                                steadiness: handToCoach.metrics.steadiness,
+                                gripType: handToCoach.metrics.gripType,
+                                speed: handToCoach.metrics.speed,
                                 handDetected: true
                             },
                             {
-                                angleTarget: expertMetrics?.rightHand?.angleTarget ?? expertMetrics?.angleTarget ?? 45,
-                                angleTolerance: expertMetrics?.rightHand?.angleTolerance ?? expertMetrics?.angleTolerance ?? 15,
-                                steadinessTarget: expertMetrics?.rightHand?.steadinessTarget ?? expertMetrics?.steadinessTarget ?? 70,
-                                expectedGripType: expertMetrics?.rightHand?.expectedGripType as any ?? expertMetrics?.expectedGripType ?? 'unknown',
-                                speedOptimal: expertMetrics?.rightHand?.speedOptimal ?? 50,
-                                speedTolerance: expertMetrics?.rightHand?.speedTolerance ?? 15,
+                                angleTarget: handMetrics?.angleTarget ?? expertMetrics?.angleTarget ?? 45,
+                                angleTolerance: handMetrics?.angleTolerance ?? expertMetrics?.angleTolerance ?? 15,
+                                steadinessTarget: handMetrics?.steadinessTarget ?? expertMetrics?.steadinessTarget ?? 70,
+                                expectedGripType: handMetrics?.expectedGripType as any ?? expertMetrics?.expectedGripType ?? 'unknown',
+                                speedOptimal: handMetrics?.speedOptimal ?? 50,
+                                speedTolerance: handMetrics?.speedTolerance ?? 15,
                                 contextElements: expertMetrics?.techniqueContext
                             },
-                            'Right Hand'
+                            handLabel
                         );
                     }
                 }
@@ -450,8 +481,8 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
             }
         }
 
-        // Generate and speak the summary (merging stats)
-        const summary = rightVoiceCoach.speakSummary(); // Primarily use Right hand for summary or merge later
+        // Generate and speak the summary
+        const summary = voiceCoach.speakSummary();
         setSessionSummary({
             ...summary,
             duration: sessionTime
@@ -736,13 +767,15 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                         </div>
                     </div>
 
-                    {/* AI Coach Voice Feedback - Merged Display */}
+                    {/* AI Coach Voice Feedback - Single Voice Coach (Turn-Taking) */}
                     <VoiceFeedbackDisplay
-                        displayedText={globalVoiceCoach.isSpeaking ? globalVoiceCoach.displayedText : (leftVoiceCoach.isSpeaking ? leftVoiceCoach.displayedText : rightVoiceCoach.displayedText)}
-                        currentMessage={globalVoiceCoach.currentMessage || leftVoiceCoach.currentMessage || rightVoiceCoach.currentMessage}
-                        messageHistory={[...globalVoiceCoach.messageHistory, ...leftVoiceCoach.messageHistory, ...rightVoiceCoach.messageHistory].sort((a, b) => b.timestamp - a.timestamp)}
-                        stats={rightVoiceCoach.stats}
-                        voiceEnabled={rightVoiceCoach.voiceEnabled}
+                        displayedText={globalVoiceCoach.isSpeaking ? globalVoiceCoach.displayedText : voiceCoach.displayedText}
+                        currentMessage={globalVoiceCoach.currentMessage || voiceCoach.currentMessage}
+                        messageHistory={[...globalVoiceCoach.messageHistory, ...voiceCoach.messageHistory].sort((a, b) => b.timestamp - a.timestamp)}
+                        stats={voiceCoach.stats}
+                        voiceEnabled={voiceCoach.voiceEnabled}
+                        voiceProvider={voiceCoach.voiceProvider}
+                        isSpeaking={globalVoiceCoach.isSpeaking || voiceCoach.isSpeaking}
                     />
                 </div>
             </main>
@@ -754,8 +787,7 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                 summary={sessionSummary}
                 onPlayAgain={() => {
                     setShowSummary(false);
-                    leftVoiceCoach.resetStats();
-                    rightVoiceCoach.resetStats();
+                    voiceCoach.resetStats();
                     globalVoiceCoach.resetStats();
                     setSessionTime(0);
                 }}

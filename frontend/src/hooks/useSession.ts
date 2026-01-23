@@ -1,12 +1,15 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
+// Get WebSocket URL from env or default to port 3001 (Node.js server)
+const WS_BASE = import.meta.env.VITE_WS_URL || 'ws://localhost:3001';
+
 /**
  * Custom hook for WebSocket connection to backend
  * Handles real-time communication for grip state and feedback
  */
 export function useWebSocket(sessionId: any, options: any = {}) {
     const {
-        url = 'ws://localhost:8000/ws',
+        url = `${WS_BASE}/ws`,
         onFeedback = () => { },
         autoReconnect = true
     } = options;
