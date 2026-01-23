@@ -112,3 +112,17 @@ async def get_livekit_token(room: str = "surgeonsight-coaching", identity: str =
             "message": "Failed to generate LiveKit token"
         }
 
+
+# WebSocket endpoint
+from fastapi import WebSocket, WebSocketDisconnect
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            data = await websocket.receive_text()
+            # Simple echo or heartbeat
+            await websocket.send_text(f"Message received: {data}")
+    except WebSocketDisconnect:
+        print("WebSocket disconnected")

@@ -32,15 +32,15 @@ const PINKY_TIP = 20;
 // One Euro Filter for smooth, responsive filtering
 class MetricFilter {
     private filter: OneEuroFilter;
-    
+
     constructor(initialValue: number = 0, minCutoff: number = 1.0, beta: number = 0.007) {
         this.filter = new OneEuroFilter(initialValue, minCutoff, beta);
     }
-    
+
     update(value: number): number {
         return this.filter.update(value);
     }
-    
+
     reset(value: number): void {
         this.filter.reset(value);
     }
@@ -66,7 +66,7 @@ export interface SurgicalMetrics {
     speed: number;             // Motion speed in normalized units
     gripType: 'pencil' | 'power' | 'unknown';
     gripConfidence: number;    // 0-1
-    
+
     // Advanced metrics (new)
     wristPronation?: number;   // Pronation/supination angle
     wristFlexion?: number;     // Flexion/extension angle
@@ -271,10 +271,10 @@ export function useMediaPipeHands({
     const handLandmarkerRef = useRef<any>(null);
     const animationFrameRef = useRef<number | null>(null);
     const lastFrameTimeRef = useRef<number>(0);
-    
+
     // Ref for callback to prevent infinite re-renders
     const onHandsDetectedRef = useRef<HandsDetectedCallback | undefined>(onHandsDetected);
-    
+
     // Keep ref updated with latest callback
     useEffect(() => {
         onHandsDetectedRef.current = onHandsDetected;
@@ -284,13 +284,13 @@ export function useMediaPipeHands({
     const landmarkHistoryRef = useRef<Map<string, HandLandmark[][]>>(new Map());
     const prevLandmarksRef = useRef<Map<string, HandLandmark[]>>(new Map());
     const prevMetricsRef = useRef<Map<string, SurgicalMetrics>>(new Map());
-    
+
     // Advanced filtering per-hand (new)
     const angleFiltersRef = useRef<Map<string, MetricFilter>>(new Map());
     const steadinessFiltersRef = useRef<Map<string, MetricFilter>>(new Map());
     const speedFiltersRef = useRef<Map<string, MetricFilter>>(new Map());
     const tremorAnalyzersRef = useRef<Map<string, TremorAnalyzer>>(new Map());
-    
+
     // Helper to get or create per-hand filters
     const getFilters = useCallback((handedness: string) => {
         if (!angleFiltersRef.current.has(handedness)) {
@@ -325,7 +325,8 @@ export function useMediaPipeHands({
                 const { HandLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision');
 
                 const vision = await FilesetResolver.forVisionTasks(
-                    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
+                    // Use specific version to match package.json and avoid mismatch
+                    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
                 );
 
                 const handLandmarker = await HandLandmarker.createFromOptions(vision, {
@@ -401,7 +402,7 @@ export function useMediaPipeHands({
                     const handHistory = landmarkHistoryRef.current.get(handedness) || [];
                     const prevLandmarks = prevLandmarksRef.current.get(handedness) || null;
                     const prevMetrics = prevMetricsRef.current.get(handedness) || null;
-                    
+
                     // Get or create per-hand filters
                     const filters = getFilters(handedness);
 
@@ -422,23 +423,23 @@ export function useMediaPipeHands({
                     // Use advanced or basic grip classification
                     let grip: { type: 'pencil' | 'power' | 'unknown'; confidence: number };
                     let gripQuality = 50;
-                    
+
                     if (useAdvancedGrip) {
                         const advancedGrip = advancedClassifyGrip(landmarks);
                         // Convert advanced grip type to basic type for backward compatibility
-                        const basicType = advancedGrip.type === 'pencil' || advancedGrip.type === 'tripod' || 
-                                         advancedGrip.type === 'modified_tripod' || advancedGrip.type === 'pinch' 
-                                         ? 'pencil' : advancedGrip.type === 'power' || advancedGrip.type === 'palm' 
-                                         ? 'power' : 'unknown';
+                        const basicType = advancedGrip.type === 'pencil' || advancedGrip.type === 'tripod' ||
+                            advancedGrip.type === 'modified_tripod' || advancedGrip.type === 'pinch'
+                            ? 'pencil' : advancedGrip.type === 'power' || advancedGrip.type === 'palm'
+                                ? 'power' : 'unknown';
                         grip = { type: basicType, confidence: advancedGrip.confidence };
                         gripQuality = advancedGrip.quality.overall;
                     } else {
                         grip = classifyGrip(landmarks);
                     }
-                    
+
                     const steadiness = calculateSteadiness(landmarks, handHistory);
                     const speed = calculateSpeed(landmarks, prevLandmarks);
-                    
+
                     // Calculate advanced angles if available
                     let advancedAngles: { wristPronation?: number; wristFlexion?: number; confidence?: number } = {};
                     try {
@@ -451,7 +452,7 @@ export function useMediaPipeHands({
                     } catch (e) {
                         // Graceful fallback if advanced angles fail
                     }
-                    
+
                     // Tremor analysis if enabled
                     let tremorSeverity = 0;
                     if (useTremorAnalysis) {
@@ -470,7 +471,7 @@ export function useMediaPipeHands({
 
                     // Apply advanced filtering or legacy EMA
                     let smoothedMetrics: SurgicalMetrics;
-                    
+
                     if (useAdvancedFiltering) {
                         // Use One Euro filtering for smooth, responsive tracking
                         smoothedMetrics = {

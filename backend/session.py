@@ -9,6 +9,30 @@ from store import SESSIONS
 router = APIRouter()
 
 
+
+@router.post("/api/session/start")
+async def start_session_api(body: dict = None):
+    """Start a new session (frontend API compatibility)."""
+    session_id = uuid4().hex
+    
+    # Initialize basic session data
+    session_data = {
+        "session_id": session_id,
+        "created_at": datetime.utcnow().isoformat(),
+        "metrics": [],
+        "events": [],
+        "score": 0.0
+    }
+    SESSIONS[session_id] = session_data
+    
+    return {
+        "sessionId": session_id,
+        "livekitToken": None,
+        "roomName": f"room-{session_id}",
+        "livekitUrl": None
+    }
+
+
 @router.post("/session", response_model=SessionResponse, status_code=201)
 async def create_session(session: SessionCreate):
     """Append a session report."""
