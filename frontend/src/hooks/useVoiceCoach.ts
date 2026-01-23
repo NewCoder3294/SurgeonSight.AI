@@ -13,9 +13,10 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 
 export interface VoiceMessage {
     text: string;
-    type: 'coaching' | 'encouragement' | 'warning' | 'summary';
+    type: 'coaching' | 'encouragement' | 'warning' | 'summary' | 'ai_observation';
     priority: 'high' | 'normal';
     timestamp: number;
+    source?: 'mediapipe' | 'overshoot';  // Track feedback source
 }
 
 export interface SessionStats {

@@ -12,25 +12,21 @@ import { useState } from 'react';
 import type { VoiceMessage, SessionStats } from '../hooks/useVoiceCoach';
 
 interface VoiceFeedbackDisplayProps {
-    isSpeaking: boolean;
+
     displayedText: string;
     currentMessage: string;
     messageHistory: VoiceMessage[];
     stats: SessionStats;
     voiceEnabled: boolean;
-    onToggleVoice: () => void;
-    onTestVoice: () => void;
 }
 
 export default function VoiceFeedbackDisplay({
-    isSpeaking,
+
     displayedText,
     currentMessage,
     messageHistory,
     stats,
     voiceEnabled,
-    onToggleVoice,
-    onTestVoice
 }: VoiceFeedbackDisplayProps) {
     const [showHistory, setShowHistory] = useState(false);
 
@@ -40,17 +36,13 @@ export default function VoiceFeedbackDisplay({
             case 'warning': return 'text-red-300 drop-shadow-[0_0_8px_rgba(252,165,165,0.6)]';
             case 'encouragement': return 'text-green-300 drop-shadow-[0_0_8px_rgba(134,239,172,0.6)]';
             case 'summary': return 'text-amber-300 drop-shadow-[0_0_8px_rgba(252,211,77,0.6)]';
+            case 'ai_observation': return 'text-purple-300 drop-shadow-[0_0_8px_rgba(196,181,253,0.6)]';
             default: return 'text-orange-300 drop-shadow-[0_0_8px_rgba(253,186,116,0.6)]';
         }
     };
 
-    const getTypeIcon = (type: VoiceMessage['type']) => {
-        switch (type) {
-            case 'warning': return '⚠️';
-            case 'encouragement': return '✨';
-            case 'summary': return '📊';
-            default: return '🎯';
-        }
+    const getTypeIcon = (_type: VoiceMessage['type']) => {
+        return null;
     };
 
     return (
@@ -59,36 +51,6 @@ export default function VoiceFeedbackDisplay({
             <div className="flex items-center justify-between px-4 pt-4 pb-2 border-b border-border-subtle">
                 <div className="flex items-center gap-2">
                     <h3 className="text-xs tracking-widest text-text-muted uppercase">AI Coach</h3>
-                    {/* Speaking indicator */}
-                    <div className={`w-2 h-2 rounded-full transition-all duration-300 ${isSpeaking
-                        ? 'bg-success animate-pulse'
-                        : voiceEnabled
-                            ? 'bg-accent-rust'
-                            : 'bg-text-dim'
-                        }`} />
-                    {isSpeaking && (
-                        <span className="text-[0.6rem] text-success animate-pulse uppercase">Speaking</span>
-                    )}
-                </div>
-
-                {/* Controls */}
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={onTestVoice}
-                        className="px-2 py-0.5 text-[0.6rem] font-mono text-text-dim hover:text-accent-rust transition-colors uppercase"
-                        title="Test voice"
-                    >
-                        🔊 Test
-                    </button>
-                    <button
-                        onClick={onToggleVoice}
-                        className={`px-2 py-0.5 text-[0.6rem] font-mono uppercase transition-all duration-300 border ${voiceEnabled
-                            ? 'bg-success/20 text-success border-success/30 hover:bg-success/30'
-                            : 'bg-error/20 text-error border-error/30 hover:bg-error/30'
-                            }`}
-                    >
-                        {voiceEnabled ? 'ON' : 'OFF'}
-                    </button>
                 </div>
             </div>
 
@@ -101,8 +63,7 @@ export default function VoiceFeedbackDisplay({
                             <span className="text-lg">
                                 {getTypeIcon(messageHistory[messageHistory.length - 1]?.type || 'coaching')}
                             </span>
-                            <p className={`font-mono text-sm leading-relaxed ${getTypeColor(messageHistory[messageHistory.length - 1]?.type || 'coaching')
-                                }`}>
+                            <p className="font-mono text-sm leading-relaxed text-gray-900">
                                 {displayedText}
                                 {displayedText !== currentMessage && (
                                     <span className="inline-block w-0.5 h-4 ml-1 bg-current animate-blink" />
@@ -110,28 +71,22 @@ export default function VoiceFeedbackDisplay({
                             </p>
                         </div>
                     ) : (
-                        <div className="flex items-center justify-center h-full text-text-dim">
+                        <div className="flex items-center justify-center h-full text-text-muted">
                             <span className="font-mono text-xs">
                                 {voiceEnabled
-                                    ? '🎯 Waiting for hand detection...'
-                                    : '🔇 Voice disabled'}
+                                    ? 'Waiting for hand detection...'
+                                    : 'Voice disabled'}
                             </span>
                         </div>
                     )}
                 </div>
 
                 {/* Stats bar */}
-                <div className="grid grid-cols-2 gap-2 mb-2">
-                    <div className="bg-bg-tertiary p-2 border border-border-subtle rounded">
+                <div className="mb-2">
+                    <div className="bg-bg-tertiary p-2 border border-border-subtle rounded text-center">
                         <span className="font-mono text-[0.6rem] text-text-dim uppercase block mb-1">Score</span>
-                        <span className={`font-mono text-lg ${stats.overallScore >= 70 ? 'text-success' : stats.overallScore >= 50 ? 'text-warning' : 'text-error'}`}>
+                        <span className={`font-mono text-lg text-gray-900`}>
                             {stats.overallScore}%
-                        </span>
-                    </div>
-                    <div className="bg-bg-tertiary p-2 border border-border-subtle rounded">
-                        <span className="font-mono text-[0.6rem] text-text-dim uppercase block mb-1">Streak</span>
-                        <span className="font-mono text-lg text-success">
-                            {Math.round(stats.currentStreak)}s
                         </span>
                     </div>
                 </div>
@@ -149,15 +104,15 @@ export default function VoiceFeedbackDisplay({
 
                 {/* Compact stats */}
                 <div className="flex items-center justify-between mt-2 text-[0.6rem] font-mono text-text-dim">
-                    <span>⚡ {stats.corrections} corrections</span>
-                    <span>✓ {stats.encouragements} praise</span>
+                    <span>{stats.corrections} corrections</span>
+                    <span>{stats.encouragements} praise</span>
                 </div>
 
                 {/* History toggle */}
                 {messageHistory.length > 1 && (
                     <button
                         onClick={() => setShowHistory(!showHistory)}
-                        className="w-full mt-2 py-1 text-[0.6rem] font-mono text-text-dim text-center hover:text-text-cream transition-colors border-t border-border-subtle"
+                        className="w-full mt-2 py-1 text-[0.6rem] font-mono text-text-dim text-center hover:text-text-muted transition-colors border-t border-border-subtle"
                     >
                         {showHistory ? '▲ Hide History' : `▼ Show History (${messageHistory.length})`}
                     </button>
