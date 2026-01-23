@@ -150,6 +150,26 @@ export default function CoachingSession({ embedded = false, expertMetrics, isSes
     const handleAiObservation = useCallback((observation: OvershootObservation) => {
         console.log('[CoachingSession] AI observation received:', observation.text);
 
+        // Filter out unhelpful generic messages
+        const textLower = observation.text.toLowerCase();
+        const skipPhrases = [
+            'no surgical activity',
+            'no activity observed',
+            'no hands detected',
+            'nothing detected',
+            'no movement detected',
+            'unable to detect',
+            'cannot detect',
+            'no visible activity',
+            'waiting for',
+            'no technique observed',
+        ];
+        
+        if (skipPhrases.some(phrase => textLower.includes(phrase))) {
+            console.log('[CoachingSession] Skipping unhelpful observation:', observation.text);
+            return;
+        }
+
         // Feed to voice coach with appropriate priority
         const priority = observation.category === 'safety' ? 'high' : 'normal';
         globalVoiceCoachRef.current.speak(observation.text, 'ai_observation', priority);
