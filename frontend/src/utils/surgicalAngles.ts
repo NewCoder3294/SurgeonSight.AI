@@ -53,37 +53,37 @@ export const LANDMARKS = {
 export interface SurgicalAngleMetrics {
   // Primary scalpel holding angle (0° = horizontal, positive = tip up, negative = tip down)
   scalpelAngle: number;
-  
+
   // Wrist flexion/extension (-90° to +90°, 0° = neutral)
   // Positive = flexion (palm toward forearm), Negative = extension (back of hand toward forearm)
   wristFlexion: number;
-  
+
   // Wrist pronation/supination (-90° to +90°, 0° = neutral thumb-up position)
   // Positive = pronation (palm down), Negative = supination (palm up)
   wristPronation: number;
-  
+
   // Radial/ulnar deviation (-30° to +30°, 0° = neutral)
   // Positive = radial (thumb side), Negative = ulnar (pinky side)
   wristDeviation: number;
-  
+
   // Thumb-index aperture angle (angle between thumb and index finger)
   pinchAperture: number;
-  
+
   // Index finger flexion (0° = straight, 180° = fully flexed)
   indexFlexion: number;
-  
+
   // Thumb opposition angle (how opposed thumb is to fingers)
   thumbOpposition: number;
-  
+
   // Roll angle of hand (rotation around forearm axis)
   handRoll: number;
-  
+
   // Pitch angle of hand (tilt forward/backward)
   handPitch: number;
-  
+
   // Instrument axis angle (angle of imaginary instrument held between thumb-index)
   instrumentAxis: number;
-  
+
   // Confidence in angle measurements (0-1)
   confidence: number;
 }
@@ -140,7 +140,7 @@ function angleBetweenVectors(a: Vector3D, b: Vector3D): number {
   const magA = magnitude(a);
   const magB = magnitude(b);
   if (magA === 0 || magB === 0) return 0;
-  
+
   const cosAngle = Math.max(-1, Math.min(1, dot(a, b) / (magA * magB)));
   return Math.acos(cosAngle) * (180 / Math.PI);
 }
@@ -157,9 +157,10 @@ function signedAngle(a: Vector3D, b: Vector3D, axis: Vector3D): number {
 
 /**
  * Calculate 2D angle from horizontal (in degrees)
+ * Optionally corrects for aspect ratio (width/height) to match visual perception
  */
-function angle2DFromHorizontal(from: HandLandmark, to: HandLandmark): number {
-  const dx = to.x - from.x;
+export function angle2DFromHorizontal(from: HandLandmark, to: HandLandmark, aspectRatio: number = 1): number {
+  const dx = (to.x - from.x) * aspectRatio; // Scale X to match Y's scale relative to visual space
   const dy = to.y - from.y;
   return Math.atan2(dy, dx) * (180 / Math.PI);
 }
@@ -172,7 +173,7 @@ function _angle3DFromHorizontal(from: HandLandmark, to: HandLandmark): number {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
   const dz = to.z - from.z;
-  
+
   // Project onto horizontal plane and measure elevation
   const horizontalDist = Math.sqrt(dx * dx + dy * dy);
   return Math.atan2(dz, horizontalDist) * (180 / Math.PI);
@@ -185,13 +186,13 @@ function calculatePalmNormal(landmarks: HandLandmark[]): Vector3D {
   const wrist = landmarks[LANDMARKS.WRIST];
   const indexMcp = landmarks[LANDMARKS.INDEX_MCP];
   const pinkyMcp = landmarks[LANDMARKS.PINKY_MCP];
-  
+
   // Vector from wrist to index MCP
   const wristToIndex = createVector(wrist, indexMcp);
-  
+
   // Vector from wrist to pinky MCP  
   const wristToPinky = createVector(wrist, pinkyMcp);
-  
+
   // Palm normal is cross product
   const normal = cross(wristToIndex, wristToPinky);
   return normalize(normal);
@@ -204,7 +205,7 @@ function calculateHandForward(landmarks: HandLandmark[]): Vector3D {
   const wrist = landmarks[LANDMARKS.WRIST];
   const _middleMcp = landmarks[LANDMARKS.MIDDLE_MCP];  // Available for refined calculation
   const middleTip = landmarks[LANDMARKS.MIDDLE_TIP];
-  
+
   // Primary forward direction from wrist to middle fingertip
   const forward = createVector(wrist, middleTip);
   return normalize(forward);
@@ -227,19 +228,19 @@ function _calculateHandUp(landmarks: HandLandmark[]): Vector3D {
 function calculateWristFlexion(landmarks: HandLandmark[]): number {
   const wrist = landmarks[LANDMARKS.WRIST];
   const middleMcp = landmarks[LANDMARKS.MIDDLE_MCP];
-  
+
   // Approximate forearm direction as pointing toward camera (negative Z)
   // In a real application, you'd want forearm landmarks
   const _forearmDir: Vector3D = { x: 0, y: 0, z: -1 };  // Reserved for improved calculation
-  
+
   // Hand direction from wrist to middle MCP
   const handDir = createVector(wrist, middleMcp);
   const normalizedHand = normalize(handDir);
-  
+
   // Calculate flexion as deviation from forearm axis
   // Project hand direction onto Y-Z plane for flexion
   const flexionAngle = Math.atan2(normalizedHand.y, -normalizedHand.z) * (180 / Math.PI);
-  
+
   return Math.max(-90, Math.min(90, flexionAngle));
 }
 
@@ -249,13 +250,13 @@ function calculateWristFlexion(landmarks: HandLandmark[]): number {
  */
 function calculateWristPronation(landmarks: HandLandmark[]): number {
   const palmNormal = calculatePalmNormal(landmarks);
-  
+
   // Reference "up" vector (against gravity)
   const _upVector: Vector3D = { x: 0, y: -1, z: 0 };  // Reserved for gravity reference
-  
+
   // Forward vector (hand pointing direction)
   const handForward = calculateHandForward(landmarks);
-  
+
   // Calculate pronation as the signed angle of palm normal around hand forward axis
   // When palm faces down (normal points up), it's pronation
   // When palm faces up (normal points down), it's supination
@@ -264,7 +265,7 @@ function calculateWristPronation(landmarks: HandLandmark[]): number {
     palmNormal,
     handForward
   );
-  
+
   return Math.max(-90, Math.min(90, pronationAngle));
 }
 
@@ -276,25 +277,25 @@ function calculateWristDeviation(landmarks: HandLandmark[]): number {
   const middleMcp = landmarks[LANDMARKS.MIDDLE_MCP];
   const indexMcp = landmarks[LANDMARKS.INDEX_MCP];
   const pinkyMcp = landmarks[LANDMARKS.PINKY_MCP];
-  
+
   // Calculate the centerline of the palm
   const palmCenter = {
     x: (indexMcp.x + pinkyMcp.x) / 2,
     y: (indexMcp.y + pinkyMcp.y) / 2,
     z: (indexMcp.z + pinkyMcp.z) / 2,
   };
-  
+
   // Vector from wrist to palm center (should be straight if no deviation)
   const _wristToPalm = createVector(wrist, palmCenter);  // Reserved for 3D analysis
-  
+
   // Vector from wrist to middle MCP
   const _wristToMiddle = createVector(wrist, middleMcp);  // Reserved for 3D analysis
-  
+
   // Calculate lateral deviation
   // Positive = radial (toward thumb), Negative = ulnar (toward pinky)
   const lateralAngle = angle2DFromHorizontal(wrist, middleMcp);
   const baselineAngle = angle2DFromHorizontal(wrist, palmCenter);
-  
+
   const deviation = lateralAngle - baselineAngle;
   return Math.max(-30, Math.min(30, deviation));
 }
@@ -306,13 +307,13 @@ function calculatePinchAperture(landmarks: HandLandmark[]): number {
   const thumbTip = landmarks[LANDMARKS.THUMB_TIP];
   const indexTip = landmarks[LANDMARKS.INDEX_TIP];
   const indexMcp = landmarks[LANDMARKS.INDEX_MCP];
-  
+
   // Vector from index MCP to thumb tip
   const mcpToThumb = createVector(indexMcp, thumbTip);
-  
+
   // Vector from index MCP to index tip
   const mcpToIndex = createVector(indexMcp, indexTip);
-  
+
   return angleBetweenVectors(mcpToThumb, mcpToIndex);
 }
 
@@ -324,15 +325,15 @@ function calculateIndexFlexion(landmarks: HandLandmark[]): number {
   const pip = landmarks[LANDMARKS.INDEX_PIP];
   const dip = landmarks[LANDMARKS.INDEX_DIP];
   const tip = landmarks[LANDMARKS.INDEX_TIP];
-  
+
   // Calculate angles at each joint
   const mcpToPip = createVector(mcp, pip);
   const pipToDip = createVector(pip, dip);
   const dipToTip = createVector(dip, tip);
-  
+
   const pipAngle = 180 - angleBetweenVectors(mcpToPip, pipToDip);
   const dipAngle = 180 - angleBetweenVectors(pipToDip, dipToTip);
-  
+
   // Combined flexion
   return pipAngle + dipAngle;
 }
@@ -345,21 +346,21 @@ function calculateThumbOpposition(landmarks: HandLandmark[]): number {
   const thumbMcp = landmarks[LANDMARKS.THUMB_MCP];
   const indexMcp = landmarks[LANDMARKS.INDEX_MCP];
   const pinkyMcp = landmarks[LANDMARKS.PINKY_MCP];
-  
+
   // Calculate palm plane (reserved for 3D opposition analysis)
   const _palmNormal = calculatePalmNormal(landmarks);
-  
+
   // Thumb direction from MCP to tip
   const thumbDir = createVector(thumbMcp, thumbTip);
   const normalizedThumb = normalize(thumbDir);
-  
+
   // Opposition is how much thumb points across palm (toward pinky side)
   const palmLateral = createVector(indexMcp, pinkyMcp);
   const normalizedLateral = normalize(palmLateral);
-  
+
   // Angle between thumb direction and lateral palm direction
   const opposition = angleBetweenVectors(normalizedThumb, normalizedLateral);
-  
+
   return opposition;
 }
 
@@ -368,16 +369,16 @@ function calculateThumbOpposition(landmarks: HandLandmark[]): number {
  */
 function calculateHandRoll(landmarks: HandLandmark[]): number {
   const palmNormal = calculatePalmNormal(landmarks);
-  
+
   // Reference: upward direction
   const upRef: Vector3D = { x: 0, y: -1, z: 0 };
-  
+
   // Project palm normal onto vertical plane perpendicular to forward
   const handForward = calculateHandForward(landmarks);
-  
+
   // Calculate roll as angle between palm normal and up vector, around forward axis
   const rollAngle = signedAngle(upRef, palmNormal, handForward);
-  
+
   return rollAngle;
 }
 
@@ -386,11 +387,11 @@ function calculateHandRoll(landmarks: HandLandmark[]): number {
  */
 function calculateHandPitch(landmarks: HandLandmark[]): number {
   const handForward = calculateHandForward(landmarks);
-  
+
   // Pitch is the angle from horizontal plane
   const horizontalMag = Math.sqrt(handForward.x * handForward.x + handForward.z * handForward.z);
   const pitch = Math.atan2(handForward.y, horizontalMag) * (180 / Math.PI);
-  
+
   return pitch;
 }
 
@@ -401,7 +402,7 @@ function calculateHandPitch(landmarks: HandLandmark[]): number {
 function calculateInstrumentAxis(landmarks: HandLandmark[]): number {
   const thumbTip = landmarks[LANDMARKS.THUMB_TIP];
   const indexTip = landmarks[LANDMARKS.INDEX_TIP];
-  
+
   // 2D angle from horizontal in the view plane
   return angle2DFromHorizontal(thumbTip, indexTip);
 }
@@ -411,7 +412,7 @@ function calculateInstrumentAxis(landmarks: HandLandmark[]): number {
  */
 function calculateConfidence(landmarks: HandLandmark[]): number {
   if (!landmarks || landmarks.length < 21) return 0;
-  
+
   // Check for reasonable landmark positions
   let validPoints = 0;
   for (const lm of landmarks) {
@@ -419,36 +420,38 @@ function calculateConfidence(landmarks: HandLandmark[]): number {
       validPoints++;
     }
   }
-  
+
   // Check for reasonable hand proportions
   const wrist = landmarks[LANDMARKS.WRIST];
   const middleTip = landmarks[LANDMARKS.MIDDLE_TIP];
   const indexMcp = landmarks[LANDMARKS.INDEX_MCP];
   const pinkyMcp = landmarks[LANDMARKS.PINKY_MCP];
-  
+
   const handLength = magnitude(createVector(wrist, middleTip));
   const palmWidth = magnitude(createVector(indexMcp, pinkyMcp));
-  
+
   // Hand should have reasonable proportions
   const proportionValid = handLength > 0.05 && palmWidth > 0.02 && handLength / palmWidth > 1.5 && handLength / palmWidth < 4;
-  
+
   let confidence = validPoints / 21;
   if (proportionValid) {
     confidence = Math.min(1, confidence + 0.1);
   } else {
     confidence = Math.max(0, confidence - 0.2);
   }
-  
+
   return confidence;
 }
 
 /**
  * Calculate all surgical angle metrics from landmarks
  */
-export function calculateSurgicalAngles(landmarks: HandLandmark[]): SurgicalAngleMetrics {
+export function calculateSurgicalAngles(landmarks: HandLandmark[], aspectRatio: number = 1): SurgicalAngleMetrics {
   if (!landmarks || landmarks.length < 21) {
     return {
       scalpelAngle: 0,
+
+      // ... (rest remains same implicitly, but we must match the surrounding code)
       wristFlexion: 0,
       wristPronation: 0,
       wristDeviation: 0,
@@ -467,25 +470,25 @@ export function calculateSurgicalAngles(landmarks: HandLandmark[]): SurgicalAngl
 
   return {
     // Primary scalpel angle (2D angle from wrist to index tip)
-    scalpelAngle: angle2DFromHorizontal(wrist, indexTip),
-    
+    scalpelAngle: angle2DFromHorizontal(wrist, indexTip, aspectRatio),
+
     // Wrist angles
     wristFlexion: calculateWristFlexion(landmarks),
     wristPronation: calculateWristPronation(landmarks),
     wristDeviation: calculateWristDeviation(landmarks),
-    
+
     // Grip metrics
     pinchAperture: calculatePinchAperture(landmarks),
     indexFlexion: calculateIndexFlexion(landmarks),
     thumbOpposition: calculateThumbOpposition(landmarks),
-    
+
     // Hand orientation
     handRoll: calculateHandRoll(landmarks),
     handPitch: calculateHandPitch(landmarks),
-    
+
     // Instrument angle
     instrumentAxis: calculateInstrumentAxis(landmarks),
-    
+
     // Confidence
     confidence: calculateConfidence(landmarks),
   };
@@ -504,6 +507,29 @@ export function getNormalizedScalpelAngle(rawAngle: number): number {
 }
 
 /**
+ * Get a symmetric "steepness" angle (0-90°) from horizontal.
+ * This ensures that mirrored poses (e.g. 45° vs 135°) both read as 45°.
+ */
+export function getSymmetricAngle(angle: number): number {
+  // First normalize to 0-360 positive
+  let norm = angle % 360;
+  if (norm < 0) norm += 360;
+
+  // Get deviation from horizontal (0 or 180)
+  // If angle is 45, diff is 45
+  // If angle is 135, diff is 45 (180 - 135)
+  // If angle is 225, diff is 45 (225 - 180)
+  // If angle is 315, diff is 45 (360 - 315)
+
+  // Simple logic: distance to nearest horizontal axis (0 or 180 or 360)
+  const distTo0 = Math.abs(norm - 0);
+  const distTo180 = Math.abs(norm - 180);
+  const distTo360 = Math.abs(norm - 360);
+
+  return Math.min(distTo0, distTo180, distTo360);
+}
+
+/**
  * Calculate the difference between current angle and target
  * Returns both the raw difference and a direction hint
  */
@@ -512,17 +538,17 @@ export function calculateAngleDifference(
   target: number
 ): { diff: number; direction: 'clockwise' | 'counterclockwise' | 'on_target' } {
   let diff = current - target;
-  
+
   // Normalize to -180 to 180 range
   while (diff > 180) diff -= 360;
   while (diff < -180) diff += 360;
-  
+
   const absDiff = Math.abs(diff);
-  
+
   if (absDiff < 5) {
     return { diff: absDiff, direction: 'on_target' };
   }
-  
+
   return {
     diff: absDiff,
     direction: diff > 0 ? 'counterclockwise' : 'clockwise',
@@ -538,7 +564,7 @@ export function isWithinSurgicalTolerance(
   tolerances: Partial<Record<keyof SurgicalAngleMetrics, number>> = {}
 ): Record<keyof Omit<SurgicalAngleMetrics, 'confidence'>, boolean> {
   const defaultTolerance = 15;
-  
+
   return {
     scalpelAngle: Math.abs(current.scalpelAngle - (target.scalpelAngle ?? 0)) <= (tolerances.scalpelAngle ?? defaultTolerance),
     wristFlexion: Math.abs(current.wristFlexion - (target.wristFlexion ?? 0)) <= (tolerances.wristFlexion ?? 20),

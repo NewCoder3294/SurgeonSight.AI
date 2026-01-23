@@ -12,7 +12,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { OneEuroFilter } from '../utils/kalmanFilter';
-import { calculateSurgicalAngles } from '../utils/surgicalAngles';
+import { calculateSurgicalAngles, getSymmetricAngle, angle2DFromHorizontal } from '../utils/surgicalAngles';
 import { TremorAnalyzer } from '../utils/tremorAnalysis';
 import { classifyGrip as advancedClassifyGrip } from '../utils/advancedGripClassifier';
 
@@ -407,8 +407,11 @@ export function useMediaPipeHands({
                     const filters = getFilters(handedness);
 
                     // Calculate surgical metrics using original landmarks (for accurate angle math)
+
                     // Calculate surgical metrics using original landmarks (for accurate angle math)
-                    const scalpelAngle = calculateAngle(landmarks[WRIST], landmarks[INDEX_TIP]);
+                    // Calculate aspect ratio for accurate angle measurement
+                    const aspectRatio = videoElement ? videoElement.videoWidth / videoElement.videoHeight : 1.777;
+                    const scalpelAngle = angle2DFromHorizontal(landmarks[WRIST], landmarks[INDEX_TIP], aspectRatio);
 
                     // Calculate pinch angle (thumb tip to index MCP to index tip)
                     const pinchAngle = calculateAngle3Points(
@@ -440,10 +443,12 @@ export function useMediaPipeHands({
                     const steadiness = calculateSteadiness(landmarks, handHistory);
                     const speed = calculateSpeed(landmarks, prevLandmarks);
 
+
+
                     // Calculate advanced angles if available
                     let advancedAngles: { wristPronation?: number; wristFlexion?: number; confidence?: number } = {};
                     try {
-                        const surgicalAngles = calculateSurgicalAngles(landmarks);
+                        const surgicalAngles = calculateSurgicalAngles(landmarks, aspectRatio);
                         advancedAngles = {
                             wristPronation: surgicalAngles.wristPronation,
                             wristFlexion: surgicalAngles.wristFlexion,
@@ -475,7 +480,7 @@ export function useMediaPipeHands({
                     if (useAdvancedFiltering) {
                         // Use One Euro filtering for smooth, responsive tracking
                         smoothedMetrics = {
-                            scalpelAngle: filters.angle.update(Math.abs(scalpelAngle)),
+                            scalpelAngle: filters.angle.update(getSymmetricAngle(scalpelAngle)),
                             pinchAngle: ema(pinchAngle, prevMetrics?.pinchAngle ?? null, 0.8),
                             fingerBend: ema(fingerBend, prevMetrics?.fingerBend ?? null, 0.8),
                             steadiness: filters.steadiness.update(steadiness),
@@ -492,7 +497,7 @@ export function useMediaPipeHands({
                     } else {
                         // Legacy EMA smoothing
                         smoothedMetrics = {
-                            scalpelAngle: ema(Math.abs(scalpelAngle), prevMetrics?.scalpelAngle ?? null, 0.8),
+                            scalpelAngle: ema(getSymmetricAngle(scalpelAngle), prevMetrics?.scalpelAngle ?? null, 0.8),
                             pinchAngle: ema(pinchAngle, prevMetrics?.pinchAngle ?? null, 0.8),
                             fingerBend: ema(fingerBend, prevMetrics?.fingerBend ?? null, 0.8),
                             steadiness: ema(steadiness, prevMetrics?.steadiness ?? null, 0.6),
