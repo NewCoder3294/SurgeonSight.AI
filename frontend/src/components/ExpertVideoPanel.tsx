@@ -650,10 +650,10 @@ export default function ExpertVideoPanel({
       return {
         angleTarget: Math.round(angleStats.mean) || 45,
         angleTolerance: Math.round(angleStats.std * 2) || 15,
-        steadinessTarget: Math.round(steadinessStats.mean) || 70,
+        steadinessTarget: Math.round(steadinessStats.mean) || 85,
         expectationGripType: dominantGrip,
-        speedOptimal: Math.round(speedStats.mean) || 50,
-        speedTolerance: Math.round(speedStats.std * 2) || 15
+        speedOptimal: speedStats.mean || 1.0,
+        speedTolerance: speedStats.std * 2 || 0.5
       };
     };
 

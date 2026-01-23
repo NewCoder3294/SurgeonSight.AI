@@ -586,12 +586,12 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                                                 <span className="text-xs font-mono text-text-dim/50 lowercase italic">vs</span>
 
                                                 <div className="flex flex-col items-center">
-                                                    <span className={`text-4xl font-mono font-bold tracking-tighter transition-colors duration-300 ${leftMetrics && Math.abs(leftMetrics.scalpelAngle - getSymmetricAngle(expertMetrics?.leftHand?.angleTarget ?? expertMetrics?.angleTarget ?? 45)) <= (expertMetrics?.leftHand?.angleTolerance ?? expertMetrics?.angleTolerance ?? 15)
+                                                    <span className={`text-4xl font-mono font-bold tracking-tighter transition-colors duration-300 ${leftMetrics && Math.abs(getSymmetricAngle(leftMetrics.scalpelAngle) - getSymmetricAngle(expertMetrics?.leftHand?.angleTarget ?? expertMetrics?.angleTarget ?? 45)) <= (expertMetrics?.leftHand?.angleTolerance ?? expertMetrics?.angleTolerance ?? 15)
                                                         ? 'text-success' : 'text-error'
                                                         }`}>
-                                                        {leftMetrics ? `${leftMetrics.scalpelAngle.toFixed(0)}°` : '--'}
+                                                        {leftMetrics ? `${getSymmetricAngle(leftMetrics.scalpelAngle).toFixed(0)}°` : '--'}
                                                     </span>
-                                                    <span className={`text-[0.5rem] uppercase tracking-wider mt-0.5 ${leftMetrics && Math.abs(leftMetrics.scalpelAngle - getSymmetricAngle(expertMetrics?.leftHand?.angleTarget ?? expertMetrics?.angleTarget ?? 45)) <= (expertMetrics?.leftHand?.angleTolerance ?? expertMetrics?.angleTolerance ?? 15)
+                                                    <span className={`text-[0.5rem] uppercase tracking-wider mt-0.5 ${leftMetrics && Math.abs(getSymmetricAngle(leftMetrics.scalpelAngle) - getSymmetricAngle(expertMetrics?.leftHand?.angleTarget ?? expertMetrics?.angleTarget ?? 45)) <= (expertMetrics?.leftHand?.angleTolerance ?? expertMetrics?.angleTolerance ?? 15)
                                                         ? 'text-success/60' : 'text-error/60'
                                                         }`}>You</span>
                                                 </div>
@@ -599,7 +599,7 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
 
                                             <div className="relative z-10 pt-3 border-t border-white/5">
                                                 {leftMetrics ? (
-                                                    Math.abs(leftMetrics.scalpelAngle - getSymmetricAngle(expertMetrics?.leftHand?.angleTarget ?? expertMetrics?.angleTarget ?? 45)) <= (expertMetrics?.leftHand?.angleTolerance ?? expertMetrics?.angleTolerance ?? 15) ? (
+                                                    Math.abs(getSymmetricAngle(leftMetrics.scalpelAngle) - getSymmetricAngle(expertMetrics?.leftHand?.angleTarget ?? expertMetrics?.angleTarget ?? 45)) <= (expertMetrics?.leftHand?.angleTolerance ?? expertMetrics?.angleTolerance ?? 15) ? (
                                                         <div className="flex items-center justify-center gap-2 bg-success/10 py-1.5 text-success border border-success/20">
                                                             <span className="text-sm">✓</span>
                                                             <span className="font-mono text-xs tracking-wider uppercase font-bold">On Target</span>
@@ -638,11 +638,11 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                                             <span className="font-mono text-[0.55rem] text-text-dim uppercase block mb-0.5">
                                                 Speed (in/s)
                                                 {expertMetrics?.leftHand?.speedOptimal && (
-                                                    <span className="text-accent-rust ml-1">Target: {expertMetrics.leftHand.speedOptimal}</span>
+                                                    <span className="text-accent-rust ml-1">Target: {expertMetrics.leftHand.speedOptimal.toFixed(2)}</span>
                                                 )}
                                             </span>
                                             <span className="font-mono text-xl text-gray-900">
-                                                {leftMetrics ? leftMetrics.speed.toFixed(1) : '--'}
+                                                {leftMetrics ? leftMetrics.speed.toFixed(2) : '--'}
                                             </span>
                                         </div>
                                         <div className="text-center mt-1">
@@ -701,12 +701,12 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                                                 <span className="text-xs font-mono text-text-dim/50 lowercase italic">vs</span>
 
                                                 <div className="flex flex-col items-center">
-                                                    <span className={`text-4xl font-mono font-bold tracking-tighter transition-colors duration-300 ${rightMetrics && Math.abs(rightMetrics.scalpelAngle - getSymmetricAngle(expertMetrics?.rightHand?.angleTarget ?? expertMetrics?.angleTarget ?? 45)) <= (expertMetrics?.rightHand?.angleTolerance ?? expertMetrics?.angleTolerance ?? 15)
+                                                    <span className={`text-4xl font-mono font-bold tracking-tighter transition-colors duration-300 ${rightMetrics && Math.abs(getSymmetricAngle(rightMetrics.scalpelAngle) - getSymmetricAngle(expertMetrics?.rightHand?.angleTarget ?? expertMetrics?.angleTarget ?? 45)) <= (expertMetrics?.rightHand?.angleTolerance ?? expertMetrics?.angleTolerance ?? 15)
                                                         ? 'text-success' : 'text-error'
                                                         }`}>
-                                                        {rightMetrics ? `${rightMetrics.scalpelAngle.toFixed(0)}°` : '--'}
+                                                        {rightMetrics ? `${getSymmetricAngle(rightMetrics.scalpelAngle).toFixed(0)}°` : '--'}
                                                     </span>
-                                                    <span className={`text-[0.5rem] uppercase tracking-wider mt-0.5 ${rightMetrics && Math.abs(rightMetrics.scalpelAngle - getSymmetricAngle(expertMetrics?.rightHand?.angleTarget ?? expertMetrics?.angleTarget ?? 45)) <= (expertMetrics?.rightHand?.angleTolerance ?? expertMetrics?.angleTolerance ?? 15)
+                                                    <span className={`text-[0.5rem] uppercase tracking-wider mt-0.5 ${rightMetrics && Math.abs(getSymmetricAngle(rightMetrics.scalpelAngle) - getSymmetricAngle(expertMetrics?.rightHand?.angleTarget ?? expertMetrics?.angleTarget ?? 45)) <= (expertMetrics?.rightHand?.angleTolerance ?? expertMetrics?.angleTolerance ?? 15)
                                                         ? 'text-success/60' : 'text-error/60'
                                                         }`}>You</span>
                                                 </div>
@@ -714,7 +714,7 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
 
                                             <div className="relative z-10 pt-3 border-t border-white/5">
                                                 {rightMetrics ? (
-                                                    Math.abs(rightMetrics.scalpelAngle - getSymmetricAngle(expertMetrics?.rightHand?.angleTarget ?? expertMetrics?.angleTarget ?? 45)) <= (expertMetrics?.rightHand?.angleTolerance ?? expertMetrics?.angleTolerance ?? 15) ? (
+                                                    Math.abs(getSymmetricAngle(rightMetrics.scalpelAngle) - getSymmetricAngle(expertMetrics?.rightHand?.angleTarget ?? expertMetrics?.angleTarget ?? 45)) <= (expertMetrics?.rightHand?.angleTolerance ?? expertMetrics?.angleTolerance ?? 15) ? (
                                                         <div className="flex items-center justify-center gap-2 bg-success/10 py-1.5 text-success border border-success/20">
                                                             <span className="text-sm">✓</span>
                                                             <span className="font-mono text-xs tracking-wider uppercase font-bold">On Target</span>
@@ -753,11 +753,11 @@ export default function CoachingSession({ embedded = false, expertMetrics }: Coa
                                             <span className="font-mono text-[0.55rem] text-text-dim uppercase block mb-0.5">
                                                 Speed (in/s)
                                                 {expertMetrics?.rightHand?.speedOptimal && (
-                                                    <span className="text-accent-rust ml-1">Target: {expertMetrics.rightHand.speedOptimal}</span>
+                                                    <span className="text-accent-rust ml-1">Target: {expertMetrics.rightHand.speedOptimal.toFixed(2)}</span>
                                                 )}
                                             </span>
                                             <span className="font-mono text-xl text-gray-900">
-                                                {rightMetrics ? rightMetrics.speed.toFixed(1) : '--'}
+                                                {rightMetrics ? rightMetrics.speed.toFixed(2) : '--'}
                                             </span>
                                         </div>
                                         <div className="text-center mt-1">

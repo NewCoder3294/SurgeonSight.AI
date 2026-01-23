@@ -12,10 +12,10 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import {
-  ElevenLabsSpeaker,
-  isElevenLabsConfigured,
-  type VoiceId,
-  VOICE_IDS,
+    ElevenLabsSpeaker,
+    isElevenLabsConfigured,
+    type VoiceId,
+    VOICE_IDS,
 } from '../services/elevenLabs';
 
 export interface VoiceMessage {
@@ -352,6 +352,8 @@ export function useVoiceCoach(options: VoiceCoachOptions = {}) {
     const lastCoachTimeRef = useRef<number>(0);
     const streakStartRef = useRef<number>(0);
     const angleDiffsRef = useRef<number[]>([]);
+    const steadinessHistoryRef = useRef<number[]>([]);
+    const speedDiffHistoryRef = useRef<number[]>([]);
 
     // Initialize voice providers
     useEffect(() => {
@@ -421,19 +423,19 @@ export function useVoiceCoach(options: VoiceCoachOptions = {}) {
     // Throttle tracking for speak calls
     const lastSpeakTimeRef = useRef<number>(0);
     const MIN_SPEAK_INTERVAL = 3000; // Minimum 3 seconds between coaching messages
-    
+
     // Core speak function with fallbacks and throttling
     const speak = useCallback((text: string, type: VoiceMessage['type'] = 'coaching', priority: VoiceMessage['priority'] = 'normal') => {
         if (!voiceEnabled) return;
 
         const now = Date.now();
-        
+
         // Throttle non-high-priority messages to prevent flooding
         if (priority !== 'high' && now - lastSpeakTimeRef.current < MIN_SPEAK_INTERVAL) {
             console.log('[VoiceCoach] Throttled - too soon since last message');
             return;
         }
-        
+
         // Limit queue size to prevent memory issues and speech flooding
         if (voiceQueueRef.current.length >= 3) {
             console.log('[VoiceCoach] Queue full, skipping message');
@@ -446,7 +448,7 @@ export function useVoiceCoach(options: VoiceCoachOptions = {}) {
             priority,
             timestamp: now
         };
-        
+
         lastSpeakTimeRef.current = now;
 
         // Add to queue
@@ -486,10 +488,10 @@ export function useVoiceCoach(options: VoiceCoachOptions = {}) {
 
         // Try to speak with ElevenLabs first, fall back to Web Speech
         try {
-            const useElevenLabsForThis = elevenLabsSpeakerRef.current && 
-                                          voiceProvider === 'elevenlabs' && 
-                                          isElevenLabsConfigured();
-            
+            const useElevenLabsForThis = elevenLabsSpeakerRef.current &&
+                voiceProvider === 'elevenlabs' &&
+                isElevenLabsConfigured();
+
             if (useElevenLabsForThis) {
                 console.log('🎤 Using ElevenLabs voice');
                 // Use ElevenLabs with timeout fallback
@@ -498,7 +500,7 @@ export function useVoiceCoach(options: VoiceCoachOptions = {}) {
                         console.warn('ElevenLabs timeout, falling back to Web Speech');
                         resolve(false);
                     }, 8000); // 8 second timeout
-                    
+
                     elevenLabsSpeakerRef.current!.speak(message.text, {
                         onEnd: () => {
                             clearTimeout(timeout);
@@ -511,7 +513,7 @@ export function useVoiceCoach(options: VoiceCoachOptions = {}) {
                         }
                     });
                 });
-                
+
                 const success = await elevenLabsPromise;
                 if (!success) {
                     // Fall back to Web Speech
@@ -527,7 +529,7 @@ export function useVoiceCoach(options: VoiceCoachOptions = {}) {
             // Final fallback - try Web Speech
             try {
                 await speakWithSynthesis(message.text, false);
-            } catch {}
+            } catch { }
         }
 
         setIsSpeaking(false);
@@ -612,8 +614,8 @@ export function useVoiceCoach(options: VoiceCoachOptions = {}) {
         angleTolerance: number;
         steadinessTarget: number;
         expectedGripType: string;
-        speedOptimal?: number; // Optimal speed target (default 50)
-        speedTolerance?: number; // Tolerance for speed (default 15)
+        speedOptimal?: number; // Optimal speed target (default 0.5)
+        speedTolerance?: number; // Tolerance for speed (default 0.2)
         contextElements?: string[]; // Expert technique context
     }, label?: string) => {
         const now = Date.now();
@@ -626,15 +628,26 @@ export function useVoiceCoach(options: VoiceCoachOptions = {}) {
         const absAngleDiff = Math.abs(angleDiff);
 
         // Speed metrics with defaults
-        const speedOptimal = expert.speedOptimal ?? 50;
-        const speedTolerance = expert.speedTolerance ?? 15;
-        const currentSpeed = current.speed ?? 50;
-        const speedDiff = currentSpeed - speedOptimal;
+        const speedOptimal = expert.speedOptimal ?? 0.5;
+        const speedTolerance = expert.speedTolerance ?? 0.2;
+        const currentSpeed = current.speed ?? 0.5;
+        const speedDiff = Math.abs(currentSpeed - speedOptimal);
         const handDetected = current.handDetected ?? true;
 
-        // Track angle diffs for average
+        // --- MULTI-DIMENSIONAL SCORING CALCULATION ---
+
+        // 1. Record metrics history (keep last 100 samples)
         angleDiffsRef.current.push(absAngleDiff);
         if (angleDiffsRef.current.length > 100) angleDiffsRef.current.shift();
+
+        // Only record steadiness/speed if hand is actually detected to avoid noise
+        if (handDetected) {
+            steadinessHistoryRef.current.push(current.steadiness);
+            if (steadinessHistoryRef.current.length > 100) steadinessHistoryRef.current.shift();
+
+            speedDiffHistoryRef.current.push(speedDiff);
+            if (speedDiffHistoryRef.current.length > 100) speedDiffHistoryRef.current.shift();
+        }
 
         // Helper to get random phrase from array
         const getRandomPhrase = (phrases: string[]) =>
@@ -664,9 +677,10 @@ export function useVoiceCoach(options: VoiceCoachOptions = {}) {
         };
 
         // Check if on track for streak counting
+        // Relaxed speed check for streak to avoid breaking it too easily
         const onTrack = absAngleDiff <= expert.angleTolerance &&
-            current.steadiness >= expert.steadinessTarget - 10 &&
-            Math.abs(speedDiff) <= speedTolerance;
+            current.steadiness >= expert.steadinessTarget - 15 &&
+            speedDiff <= speedTolerance * 1.2;
 
         if (onTrack) {
             if (streakStartRef.current === 0) {
@@ -761,13 +775,43 @@ export function useVoiceCoach(options: VoiceCoachOptions = {}) {
             }
         }
 
-        // Update average angle diff and score
-        const avgDiff = angleDiffsRef.current.reduce((a, b) => a + b, 0) / angleDiffsRef.current.length;
-        const score = Math.max(0, Math.min(100, 100 - (avgDiff * 2)));
+        // --- NEW SCORE CALCULATION ---
+
+        // Calculate averages
+        const avgAngleDiff = angleDiffsRef.current.reduce((a, b) => a + b, 0) / (angleDiffsRef.current.length || 1);
+
+        const avgSteadiness = steadinessHistoryRef.current.length > 0
+            ? steadinessHistoryRef.current.reduce((a, b) => a + b, 0) / steadinessHistoryRef.current.length
+            : 70; // Default if no data
+
+        const avgSpeedDiff = speedDiffHistoryRef.current.length > 0
+            ? speedDiffHistoryRef.current.reduce((a, b) => a + b, 0) / speedDiffHistoryRef.current.length
+            : 0; // Default perfect if no data
+
+        // Calculate Component Scores
+
+        // 1. Angle Score (40% weight): 0-100
+        // Penalty: Lose 2.5 points per degree off. 40 degrees off = 0 score.
+        const angleScore = Math.max(0, 100 - (avgAngleDiff * 2.5));
+
+        // 2. Steadiness Score (40% weight): 0-100
+        // Input range typically 40-100%. Map 40->0, 95->100.
+        // Formula: (Steadiness - 40) * 1.8 roughly maps 40-95 range to 0-100
+        const steadinessScore = Math.max(0, Math.min(100, (avgSteadiness - 40) * 1.8));
+
+        // 3. Speed Score (20% weight): 0-100
+        // Penalty: Lose 2 points per unit off optimal. 50 units off = 0 score.
+        const speedScore = Math.max(0, 100 - (avgSpeedDiff * 2));
+
+        // Weighted Total Score
+        const finalScore = (angleScore * 0.4) + (steadinessScore * 0.4) + (speedScore * 0.2);
+
         setStats(prev => ({
             ...prev,
-            avgAngleDiff: avgDiff,
-            overallScore: Math.round(score)
+            avgAngleDiff,
+            avgSteadiness,
+            avgSpeedDiff,
+            overallScore: Math.round(finalScore)
         }));
     }, [speak]);
 
@@ -891,7 +935,7 @@ export function useVoiceCoach(options: VoiceCoachOptions = {}) {
         setVoiceEnabled,
         switchVoiceProvider,
         setElevenLabsVoice,
-        
+
         // Available voices
         availableElevenLabsVoices: VOICE_IDS,
     };

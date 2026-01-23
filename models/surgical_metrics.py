@@ -163,8 +163,8 @@ def calculate_steadiness(current: List[HandLandmark], history: List[List[HandLan
     normalized_jitter = (std_dev / hand_size) * 100
     
     # Map to 0-100 steadiness scale
-    # jitter of 0 = 100% steady, jitter of 50+ = 0% steady
-    steadiness = max(0, min(100, 100 - normalized_jitter * 2))
+    # relaxed sensitivity: multiplier reduced from 1.2 to 0.4 (DEMO MODE)
+    steadiness = max(0, min(100, 100 - normalized_jitter * 0.4))
     return steadiness
 
 
@@ -198,9 +198,9 @@ def calculate_speed(
         (current_wrist.y - prev_wrist.y) ** 2
     )
     
-    # Convert to inches: multiply by ~6.5 (estimated inches per normalized unit)
+    # Convert to inches: multiply by ~0.5 (recalibrated)
     # At given FPS, multiply by fps to get inches/second
-    inches_per_frame = normalized_dist * 6.5
+    inches_per_frame = normalized_dist * 0.5
     inches_per_second = inches_per_frame * fps
     
     return inches_per_second

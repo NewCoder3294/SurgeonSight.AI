@@ -121,8 +121,20 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     try:
         while True:
-            data = await websocket.receive_text()
-            # Simple echo or heartbeat
-            await websocket.send_text(f"Message received: {data}")
+            try:
+                data = await websocket.receive_json()
+                msg_type = data.get("type")
+                
+                if msg_type == "ping":
+                    await websocket.send_json({"type": "pong"})
+                elif msg_type == "join":
+                    session_id = data.get("sessionId")
+                    await websocket.send_json({"type": "joined", "sessionId": session_id})
+                # Add other message handlers as needed
+                
+            except Exception as e:
+                # Handle non-JSON messages or other errors
+                print(f"Error processing message: {e}")
+                
     except WebSocketDisconnect:
         print("WebSocket disconnected")

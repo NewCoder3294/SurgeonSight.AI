@@ -25,6 +25,8 @@ export interface ExpertMetrics {
     angleTolerance: number;
     expectedGripType: 'pencil' | 'power' | 'unknown';
     steadinessTarget: number;
+    speedOptimal?: number;
+    speedTolerance?: number;
 
     // Separate hand metrics
     leftHand?: HandMetrics;
@@ -52,9 +54,11 @@ const DEFAULT_METRICS: ExpertMetrics = {
     angleTarget: 45,
     angleMin: 30,
     angleMax: 60,
-    angleTolerance: 15,
+    angleTolerance: 25, // Relaxed from 15
     expectedGripType: 'pencil',
-    steadinessTarget: 70,
+    steadinessTarget: 85, // Reduced from 95
+    speedOptimal: 0.5,
+    speedTolerance: 0.3, // Reduced scale
     techniqueContext: [],
     techniqueNotes: [
         'Maintain steady hand position',

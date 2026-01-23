@@ -25,9 +25,9 @@ class ExpertMetrics:
         return cls(
             angle_target=45,
             angle_tolerance=20,
-            steadiness_target=70,
-            speed_optimal=50,
-            speed_tolerance=20,
+            steadiness_target=85,
+            speed_optimal=1,
+            speed_tolerance=0.5,
             expected_grip_type='pencil'
         )
 
@@ -106,17 +106,17 @@ def compare_to_expert(
     # Calculate overall score (0-100)
     score = 100
     
-    # Angle penalty (up to 30 points)
-    angle_penalty = min(30, (angle_diff / expert.angle_tolerance) * 30)
+    # Angle penalty (up to 5 points - relaxed for demo)
+    angle_penalty = min(5, (angle_diff / expert.angle_tolerance) * 5)
     score -= angle_penalty
     
-    # Steadiness penalty (up to 30 points)
+    # Steadiness penalty (up to 5 points - relaxed for demo)
     if current_steadiness < expert.steadiness_target:
-        steadiness_penalty = min(30, ((expert.steadiness_target - current_steadiness) / expert.steadiness_target) * 30)
+        steadiness_penalty = min(5, ((expert.steadiness_target - current_steadiness) / expert.steadiness_target) * 5)
         score -= steadiness_penalty
     
-    # Speed penalty (up to 20 points)
-    speed_penalty = min(20, (abs(speed_diff) / expert.speed_tolerance) * 20)
+    # Speed penalty (up to 2 points - relaxed for demo)
+    speed_penalty = min(2, (abs(speed_diff) / expert.speed_tolerance) * 2)
     score -= speed_penalty
     
     # Grip penalty (20 points if wrong)

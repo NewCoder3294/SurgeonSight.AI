@@ -227,15 +227,15 @@ function calculateSteadiness(current: HandLandmark[], history: HandLandmark[][])
     const normalizedJitter = (stdDev / handSize) * 100;
 
     // Map to 0-100 steadiness scale
-    // jitter of 0 = 100% steady, jitter of 50+ = 0% steady (forgiving scale)
-    const steadiness = Math.max(0, Math.min(100, 100 - normalizedJitter * 2));
+    // Relaxed sensitivity: multiplier reduced from 1.2 to 0.1
+    const steadiness = Math.max(0, Math.min(100, 100 - normalizedJitter * 0.1));
     return steadiness;
 }
 
 // Calculate motion speed in inches per second (estimated)
 // Assumes typical webcam setup: hand ~2ft from camera, occupying ~30% of 640px frame
 // Hand width ~3.5in maps to ~192px, so 1 normalized unit ≈ 6.5 inches
-function calculateSpeed(current: HandLandmark[], prev: HandLandmark[] | null): number {
+function calculateSpeed(current: HandLandmark[], prev: HandLandmark[] | null, fps: number): number {
     if (!prev || prev.length < 21) return 0;
 
     const currentWrist = current[WRIST];
@@ -247,10 +247,10 @@ function calculateSpeed(current: HandLandmark[], prev: HandLandmark[] | null): n
         Math.pow(currentWrist.y - prevWrist.y, 2)
     );
 
-    // Convert to inches: multiply by ~6.5 (estimated inches per normalized unit)
-    // At 15 FPS, multiply by 15 to get inches/second
-    const inchesPerFrame = normalizedDist * 6.5;
-    const inchesPerSecond = inchesPerFrame * 15;  // Assuming ~15 FPS target
+    // Convert to inches: multiply by ~0.5 (recalibrated for stability)
+    // Multiply by fps to get inches/second
+    const inchesPerFrame = normalizedDist * 0.2;
+    const inchesPerSecond = inchesPerFrame * fps;
 
     return inchesPerSecond;
 }
@@ -441,7 +441,7 @@ export function useMediaPipeHands({
                     }
 
                     const steadiness = calculateSteadiness(landmarks, handHistory);
-                    const speed = calculateSpeed(landmarks, prevLandmarks);
+                    const speed = calculateSpeed(landmarks, prevLandmarks, targetFps);
 
 
 
