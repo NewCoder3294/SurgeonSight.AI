@@ -6,7 +6,7 @@
  */
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { createOvershootVision, isOvershootConfigured } from '../services/overshoot';
+import { createOvershootVision, isOvershootConfigured, getActiveStreamCount, shouldWaitForStreamLimit } from '../services/overshoot';
 
 export interface OvershootObservation {
   text: string;
@@ -321,6 +321,7 @@ export function useOvershootLive({
   const onObservationRef = useRef(onObservation);
   const onErrorRef = useRef(onError);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const currentVisionRef = useRef<{ stop: () => Promise<void> } | null>(null);
 
   // For adaptive prompts, rotate through types
   const _promptRotationRef = useRef<PromptType[]>(['default', 'angles', 'steadiness', 'grip']);
@@ -356,6 +357,22 @@ export function useOvershootLive({
       return;
     }
 
+    // Skip if we're in cooldown from stream limit
+    if (shouldWaitForStreamLimit()) {
+      console.log('[OvershootLive] Skipping analysis - in stream limit cooldown');
+      return;
+    }
+
+    // Stop any existing stream from this hook
+    if (currentVisionRef.current) {
+      try {
+        await currentVisionRef.current.stop();
+      } catch (e) {
+        // Ignore errors when stopping
+      }
+      currentVisionRef.current = null;
+    }
+
     const currentClipIndex = clipIndexRef.current++;
     setIsAnalyzing(true);
     setError(null);
@@ -364,7 +381,7 @@ export function useOvershootLive({
     abortControllerRef.current = new AbortController();
 
     try {
-      console.log(`[OvershootLive] Analyzing clip ${currentClipIndex} (${(file.size / 1024).toFixed(1)}KB)`);
+      console.log(`[OvershootLive] Analyzing clip ${currentClipIndex} (${(file.size / 1024).toFixed(1)}KB, ${getActiveStreamCount()} active streams)`);
 
       let resultReceived = false;
 
@@ -414,12 +431,16 @@ export function useOvershootLive({
         },
       });
 
+      // Store reference for cleanup
+      currentVisionRef.current = vision;
+      
       await vision.start();
 
       // Wait for analysis to complete
       await new Promise((resolve) => setTimeout(resolve, 10000));
 
       await vision.stop();
+      currentVisionRef.current = null;
 
     } catch (err: any) {
       console.error('[OvershootLive] Analysis failed:', err);
@@ -447,6 +468,11 @@ export function useOvershootLive({
   useEffect(() => {
     return () => {
       abortControllerRef.current?.abort();
+      // Stop any active stream from this hook
+      if (currentVisionRef.current) {
+        currentVisionRef.current.stop().catch(() => {});
+        currentVisionRef.current = null;
+      }
     };
   }, []);
 

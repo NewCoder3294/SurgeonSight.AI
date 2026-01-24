@@ -9,6 +9,44 @@ export const HAND_CONNECTIONS = [
     [5, 9], [9, 13], [13, 17]           // Palm
 ];
 
+/**
+ * Helper function to draw text that won't be mirrored by CSS -scale-x-100
+ * Since the canvas has CSS transform scaleX(-1), we need to flip text back
+ * Also draws a background rect behind the text
+ */
+function drawUnmirroredLabel(
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    x: number,
+    y: number,
+    textColor: string,
+    bgColor: string = 'rgba(10, 15, 26, 0.85)',
+    padding: number = 4
+) {
+    ctx.save();
+    
+    // Measure text width
+    ctx.font = ctx.font; // ensure font is set
+    const metrics = ctx.measureText(text);
+    const textWidth = metrics.width;
+    const textHeight = parseInt(ctx.font) || 12;
+    
+    // Position for the flipped context
+    ctx.translate(x, y);
+    ctx.scale(-1, 1);
+    
+    // Draw background rect (positioned to the left of origin since we're flipped)
+    ctx.fillStyle = bgColor;
+    ctx.fillRect(-textWidth - padding, -textHeight/2 - padding, textWidth + padding * 2, textHeight + padding * 2);
+    
+    // Draw text
+    ctx.fillStyle = textColor;
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, -textWidth, 0);
+    
+    ctx.restore();
+}
+
 // Draw hand skeleton lines
 export function drawHandSkeleton(ctx: any, landmarks: any, width: any, height: any, flipX: boolean = false) {
     // Scale drawing based on canvas width (baseline 1280px)
@@ -74,16 +112,20 @@ export function drawAngleArc(ctx: any, landmarks: any, angle: number, width: num
     ctx.lineTo(indexX, indexY);
     ctx.stroke();
 
-    // Draw angle value label
-    const labelX = wristX + 50 * scale;
+    // Draw angle value label (un-mirrored so text reads correctly)
+    const labelX = wristX + 70 * scale;
     const labelY = wristY - 20 * scale;
 
-    ctx.fillStyle = 'rgba(10, 15, 26, 0.8)';
-    ctx.fillRect(labelX - 5 * scale, labelY - 14 * scale, 50 * scale, 20 * scale);
-
     ctx.font = `bold ${Math.round(14 * scale)}px monospace`;
-    ctx.fillStyle = 'rgba(196, 92, 62, 1)';
-    ctx.fillText(`${Math.abs(angle).toFixed(1)}°`, labelX, labelY);
+    drawUnmirroredLabel(
+        ctx,
+        `${Math.abs(angle).toFixed(1)}°`,
+        labelX,
+        labelY,
+        'rgba(196, 92, 62, 1)',
+        'rgba(10, 15, 26, 0.85)',
+        6 * scale
+    );
 }
 
 // Draw hand landmark points
@@ -159,16 +201,20 @@ export function drawPinchAngle(ctx: any, landmarks: any, angle: number, width: n
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Draw angle value label
-    const labelX = mcpX - 60 * scale;
-    const labelY = mcpY - 10 * scale;
-
-    ctx.fillStyle = 'rgba(10, 15, 26, 0.85)';
-    ctx.fillRect(labelX - 5 * scale, labelY - 14 * scale, 70 * scale, 20 * scale);
+    // Draw angle value label (un-mirrored so text reads correctly)
+    const labelX = mcpX + 10 * scale;
+    const labelY = mcpY - 25 * scale;
 
     ctx.font = `bold ${Math.round(12 * scale)}px monospace`;
-    ctx.fillStyle = 'rgba(34, 197, 94, 1)';
-    ctx.fillText(`Pinch ${angle.toFixed(0)}°`, labelX, labelY);
+    drawUnmirroredLabel(
+        ctx,
+        `Pinch ${angle.toFixed(0)}°`,
+        labelX,
+        labelY,
+        'rgba(34, 197, 94, 1)',
+        'rgba(10, 15, 26, 0.85)',
+        5 * scale
+    );
 }
 
 // Draw finger bend indicator on index finger
@@ -196,10 +242,6 @@ export function drawFingerBend(ctx: any, landmarks: any, bendPercent: number, wi
     const barX = midX - barWidth / 2;
     const barY = midY - 25 * scale;
 
-    // Background
-    ctx.fillStyle = 'rgba(10, 15, 26, 0.85)';
-    ctx.fillRect(barX - 5 * scale, barY - 18 * scale, barWidth + 50 * scale, 30 * scale);
-
     // Bar background
     ctx.fillStyle = 'rgba(100, 100, 100, 0.5)';
     ctx.fillRect(barX, barY, barWidth, barHeight);
@@ -216,10 +258,17 @@ export function drawFingerBend(ctx: any, landmarks: any, bendPercent: number, wi
     ctx.lineWidth = 1 * scale;
     ctx.strokeRect(barX, barY, barWidth, barHeight);
 
-    // Label
+    // Label (un-mirrored so text reads correctly)
     ctx.font = `bold ${Math.round(10 * scale)}px monospace`;
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    ctx.fillText(`Bend ${bendPercent.toFixed(0)}%`, barX + barWidth + 5 * scale, barY + 7 * scale);
+    drawUnmirroredLabel(
+        ctx,
+        `Bend ${bendPercent.toFixed(0)}%`,
+        barX + barWidth + 50 * scale,
+        barY + barHeight / 2,
+        'rgba(255, 255, 255, 0.9)',
+        'rgba(10, 15, 26, 0.85)',
+        4 * scale
+    );
 
     // Connection line to finger
     ctx.beginPath();

@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import VideoFeed from './VideoFeed';
 import ThemeToggle from './ThemeToggle';
 import Hand3DVisualization from './Hand3DVisualization';
 import VoiceFeedbackDisplay from './VoiceFeedbackDisplay';
-import SessionSummaryModal from './SessionSummaryModal';
+// SessionSummaryModal removed - auto-scroll to Part 3 instead
 import { useWebSocket, useVoiceFeedback } from '../hooks/useSession';
 import { useMockHandDetection } from '../hooks/useHandDetection';
 import { useVoiceCoach } from '../hooks/useVoiceCoach';
@@ -37,9 +37,15 @@ interface CoachingSessionProps {
     embedded?: boolean;
     expertMetrics?: ExpertMetrics; // Expert baseline for comparison
     isSessionActive?: boolean; // Control when the session (and voice) actually starts
+    onSessionRecorded?: (videoUrl: string) => void; // Callback when session recording is complete
 }
 
-export default function CoachingSession({ embedded = false, expertMetrics, isSessionActive = true }: CoachingSessionProps) {
+// Expose handle for parent to trigger end session
+export interface CoachingSessionHandle {
+    endSession: () => Promise<void>;
+}
+
+const CoachingSession = forwardRef<CoachingSessionHandle, CoachingSessionProps>(function CoachingSession({ embedded = false, expertMetrics, isSessionActive = true, onSessionRecorded }, ref) {
     const videoFeedRef = useRef(null);
 
     // Session state
@@ -53,12 +59,17 @@ export default function CoachingSession({ embedded = false, expertMetrics, isSes
     const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
     const [currentMetrics, setCurrentMetrics] = useState<SurgicalMetrics | null>(null);
     const [detectedHands, setDetectedHands] = useState<HandData[]>([]);
-    const [showSummary, setShowSummary] = useState(false);
-    const [sessionSummary, setSessionSummary] = useState<any>(null);
 
     // AI Analysis (Overshoot) state
     const [aiEnabled] = useState(true);
     const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
+
+    // Full session recording state
+    const sessionRecorderRef = useRef<MediaRecorder | null>(null);
+    const sessionChunksRef = useRef<Blob[]>([]);
+    const [isRecording, setIsRecording] = useState(false);
+    const [recordingTime, setRecordingTime] = useState(0);
+    const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     // Demo mode state
     const [feedbackIndex, setFeedbackIndex] = useState(0);
@@ -344,7 +355,47 @@ export default function CoachingSession({ embedded = false, expertMetrics, isSes
                 setVideoElement(videoEl);
             }
         }
+        // Recording now starts manually via startRecording button
     }, []);
+
+    // Start recording manually
+    const startRecording = useCallback(() => {
+        if (!mediaStream || isRecording || sessionRecorderRef.current) return;
+
+        try {
+            const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+                ? 'video/webm;codecs=vp9'
+                : MediaRecorder.isTypeSupported('video/webm')
+                    ? 'video/webm'
+                    : 'video/mp4';
+
+            sessionChunksRef.current = [];
+            const recorder = new MediaRecorder(mediaStream, {
+                mimeType,
+                videoBitsPerSecond: 2500000, // 2.5 Mbps for better quality
+            });
+
+            recorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    sessionChunksRef.current.push(event.data);
+                }
+            };
+
+            sessionRecorderRef.current = recorder;
+            recorder.start(1000); // Collect data every second
+            setIsRecording(true);
+            setRecordingTime(0);
+
+            // Start recording timer
+            recordingTimerRef.current = setInterval(() => {
+                setRecordingTime(t => t + 1);
+            }, 1000);
+
+            console.log('[CoachingSession] Started session recording');
+        } catch (err) {
+            console.error('[CoachingSession] Failed to start session recording:', err);
+        }
+    }, [mediaStream, isRecording]);
 
     // Video element and stream are now handled via onStreamReady callback
     // Polling logic removed to prevent race conditions
@@ -554,16 +605,42 @@ export default function CoachingSession({ embedded = false, expertMetrics, isSes
             }
         }
 
-        // Generate and speak the summary
-        const summary = voiceCoach.speakSummary();
-        setSessionSummary({
-            ...summary,
-            duration: sessionTime
-        });
-        setShowSummary(true);
+        // Stop recording timer
+        if (recordingTimerRef.current) {
+            clearInterval(recordingTimerRef.current);
+            recordingTimerRef.current = null;
+        }
 
-        console.log("Session Ended", { duration: sessionTime, events: feedbackHistory, summary });
+        // Stop session recording and provide video URL
+        if (sessionRecorderRef.current && sessionRecorderRef.current.state !== 'inactive') {
+            sessionRecorderRef.current.stop();
+            setIsRecording(false);
+
+            // Wait a moment for final chunks to be collected
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            if (sessionChunksRef.current.length > 0) {
+                const mimeType = sessionRecorderRef.current.mimeType || 'video/webm';
+                const blob = new Blob(sessionChunksRef.current, { type: mimeType });
+                const videoUrl = URL.createObjectURL(blob);
+                console.log('[CoachingSession] Session recording complete:', {
+                    size: (blob.size / 1024 / 1024).toFixed(2) + ' MB',
+                    duration: recordingTime + 's',
+                    chunks: sessionChunksRef.current.length
+                });
+                onSessionRecorded?.(videoUrl);
+            } else {
+                console.warn('[CoachingSession] No recording data collected');
+            }
+        }
+
+        console.log("Session Ended", { duration: sessionTime, recordingDuration: recordingTime, events: feedbackHistory });
     };
+
+    // Expose endSession to parent via ref
+    useImperativeHandle(ref, () => ({
+        endSession: handleEndSession
+    }), [handleEndSession]);
 
     return (
         <div className="h-full flex flex-col bg-bg-primary">
@@ -718,6 +795,27 @@ export default function CoachingSession({ embedded = false, expertMetrics, isSes
                                 <span className="font-mono text-sm text-accent-rust animate-pulse">Loading MediaPipe...</span>
                             </div>
                         )}
+                        
+                        {/* Recording controls overlay */}
+                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4 z-20">
+                            {!isRecording && mediaStream && (
+                                <button
+                                    onClick={startRecording}
+                                    className="px-6 py-3 bg-error text-white font-display text-sm tracking-wider uppercase border-2 border-error transition-all duration-300 hover:bg-error/80 hover:scale-105 flex items-center gap-2 shadow-lg"
+                                >
+                                    <span className="w-3 h-3 rounded-full bg-white"></span>
+                                    Start Recording
+                                </button>
+                            )}
+                            {isRecording && (
+                                <div className="flex items-center gap-3 bg-bg-primary/90 px-4 py-2 border border-error">
+                                    <span className="w-3 h-3 rounded-full bg-error animate-pulse"></span>
+                                    <span className="font-mono text-sm text-error">
+                                        REC {Math.floor(recordingTime / 60).toString().padStart(2, '0')}:{(recordingTime % 60).toString().padStart(2, '0')}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     {/* Right Hand Metrics */}
@@ -852,19 +950,9 @@ export default function CoachingSession({ embedded = false, expertMetrics, isSes
                 </div>
             </main>
 
-            {/* Session Summary Modal */}
-            <SessionSummaryModal
-                isOpen={showSummary}
-                onClose={() => setShowSummary(false)}
-                summary={sessionSummary}
-                onPlayAgain={() => {
-                    setShowSummary(false);
-                    voiceCoach.resetStats();
-                    globalVoiceCoach.resetStats();
-                    setSessionTime(0);
-                }}
-            />
         </div>
     );
-}
+});
+
+export default CoachingSession;
 

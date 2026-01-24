@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { createOvershootVision, isOvershootConfigured, getApiKeyInfo } from '../services/overshoot';
+import { createOvershootVision, isOvershootConfigured, getApiKeyInfo, closeAllStreams, shouldWaitForStreamLimit, getStreamLimitCooldownRemaining } from '../services/overshoot';
 import { parseOvershootOutput, conceptSignature } from '../utils/noteProcessing';
 import { useMediaPipeHands } from '../hooks/useMediaPipeHands';
 import { drawHandSkeleton, drawHandLandmarks, drawAngleArc, drawPinchAngle, drawFingerBend } from '../utils/canvasDrawing';
@@ -28,6 +28,7 @@ interface ExpertVideoPanelProps {
   }) => void;
   onError?: (error: string) => void;
   onVideoUploaded?: () => void;
+  onVideoUrlReady?: (url: string) => void; // Callback to provide expert video URL for Part 3
 }
 
 // Interface for per-hand accumulated metrics
@@ -123,6 +124,7 @@ export default function ExpertVideoPanel({
   onAnalysisResult,
   onError,
   onVideoUploaded,
+  onVideoUrlReady,
 }: ExpertVideoPanelProps) {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string>('');
@@ -164,6 +166,24 @@ export default function ExpertVideoPanel({
   const flushIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastAcceptedTimeRef = useRef<number>(0); // Track when last note was accepted for throttling
   const seenObservationSignaturesRef = useRef<Set<string>>(new Set()); // Track concept signatures for deduplication
+
+  // Cleanup streams on unmount
+  useEffect(() => {
+    return () => {
+      // Stop any active vision instance
+      if (visionInstanceRef.current) {
+        visionInstanceRef.current.stop().catch(() => {});
+        visionInstanceRef.current = null;
+      }
+      // Clear any intervals
+      if (flushIntervalRef.current) {
+        clearInterval(flushIntervalRef.current);
+      }
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
 
   // Hand tracking for uploaded video
   const { hands: detectedHands, isLoading: isHandTrackingLoading } = useMediaPipeHands({
@@ -242,6 +262,8 @@ export default function ExpertVideoPanel({
       setError(null);
       // Notify parent that video was uploaded
       onVideoUploaded?.();
+      // Provide video URL for Part 3 comparison
+      onVideoUrlReady?.(url);
     }
   };
 
@@ -266,6 +288,24 @@ export default function ExpertVideoPanel({
       setError(errorMsg);
       onError?.(errorMsg);
       return;
+    }
+
+    // Check for stream limit cooldown
+    if (shouldWaitForStreamLimit()) {
+      const remaining = getStreamLimitCooldownRemaining();
+      const errorMsg = `Stream limit reached. Please wait ${remaining} seconds and try again.`;
+      setError(errorMsg);
+      onError?.(errorMsg);
+      return;
+    }
+
+    // Close all existing streams before starting new analysis
+    try {
+      await closeAllStreams();
+      // Give server a moment to release streams
+      await new Promise(resolve => setTimeout(resolve, 1500));
+    } catch (e) {
+      console.warn('[ExpertVideoPanel] Error closing streams:', e);
     }
 
     // Debug: Log API key info (safe - only shows prefix)
@@ -948,8 +988,21 @@ export default function ExpertVideoPanel({
         {/* Error display */}
         {error && (
           <div className="p-4 bg-error/10 border border-error/30 text-error text-sm">
-            <p className="font-mono text-xs uppercase mb-1">Error</p>
+            <p className="font-mono text-xs uppercase mb-1">Analysis Error</p>
             <p>{error}</p>
+            <p className="text-text-muted text-xs mt-2">Make sure VITE_OVERSHOOT_API_KEY is set in your .env file.</p>
+            {error.includes('Stream limit') && (
+              <button
+                onClick={() => {
+                  setError(null);
+                  // Wait a moment then retry
+                  setTimeout(() => startAnalysis(), 2000);
+                }}
+                className="mt-3 px-4 py-2 bg-accent-teal text-white text-xs font-mono uppercase tracking-wider hover:bg-accent-teal/80 transition-colors"
+              >
+                Retry Analysis
+              </button>
+            )}
           </div>
         )}
       </div>
